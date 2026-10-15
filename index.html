@@ -402,14 +402,19 @@ a.linkbtn { display: inline-block; }
     navigator.geolocation.getCurrentPosition(function (pos) {
       var la = pos.coords.latitude, lo = pos.coords.longitude, sp = state.sport;
       geo.status = "loading"; render();
-      var ar = "(around:2500," + la + "," + lo + ")";
-      var q = "[out:json][timeout:15];(nwr" + ar + '["leisure"="park"]["name"];nwr' + ar + '["leisure"~"pitch|sports_centre|stadium"]["sport"~"' + OSM_SPORT[sp] + '"]["name"];);out center 60;';
-      var ctl = window.AbortController ? new AbortController() : null;
-      var t = setTimeout(function () { if (ctl) ctl.abort(); }, 15000);
-      fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: "data=" + encodeURIComponent(q), signal: ctl ? ctl.signal : undefined })
-        .then(function (r) { if (!r.ok) throw new Error("bad"); return r.json(); })
-        .then(function (j) {
-          clearTimeout(t);
+      var ar = "(around:4000," + la + "," + lo + ")";
+      var q = "[out:json][timeout:20];(nwr" + ar + '["leisure"~"^(park|recreation_ground|playground|pitch|sports_centre|stadium|common)$"]["name"];nwr' + ar + '["sport"~"' + OSM_SPORT[sp] + '"]["name"];);out center 120;';
+      var hosts = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+      function ask(i) {
+        if (i >= hosts.length) return Promise.reject(new Error("all failed"));
+        var ctl = window.AbortController ? new AbortController() : null;
+        var t = setTimeout(function () { if (ctl) ctl.abort(); }, 14000);
+        return fetch(hosts[i], { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(q), signal: ctl ? ctl.signal : undefined })
+          .then(function (r) { clearTimeout(t); if (!r.ok) throw new Error("bad"); return r.json(); })
+          .then(function (j) { if (j.remark && !(j.elements && j.elements.length)) throw new Error("busy"); return j; })
+          .catch(function () { clearTimeout(t); return ask(i + 1); });
+      }
+      ask(0).then(function (j) {
           var seen = {}, out = [];
           (j.elements || []).forEach(function (e) {
             var n = e.tags && e.tags.name, c = e.center || e; if (!n || seen[n] || c.lat == null) return;
@@ -420,7 +425,7 @@ a.linkbtn { display: inline-block; }
           if (out.length) state.live.spot = out[0].name;
           render();
         })
-        .catch(function () { clearTimeout(t); geo.status = "neterr"; render(); });
+        .catch(function () { geo.status = "neterr"; render(); });
     }, function (err) { geo.status = err && err.code === 1 ? "denied" : "err"; render(); }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 });
   }
   var GEO_MSG = {
@@ -428,7 +433,7 @@ a.linkbtn { display: inline-block; }
     denied: "Location is blocked here. This preview page may not be allowed to use it. Pick your park from the list below.",
     err: "Couldn’t get your location here, so pick your park from the list below.",
     neterr: "Got your location but couldn’t load nearby parks here, so pick from the list below.",
-    none: "No named parks or fields found within about 1.5 miles. Pick from the list below.",
+    none: "No named parks or fields found within about 2.5 miles. Pick from the list below.",
     ok: "Showing the closest spots to you."
   };
   var DAYS = { today: "Today", tomorrow: "Tomorrow", weekend: "Saturday" };
