@@ -387,7 +387,8 @@ a.linkbtn { display: inline-block; }
     basketball: ["Hartwell Park courts", "Lincoln Rec Center gym (open play)", "Riverside Park courts", "Veterans Memorial courts"],
     soccer: ["Hartwell Park, Field 2", "Riverside High field (public)", "Veterans Memorial Field", "Lincoln Rec Center lawn"]
   };
-  var geo = { status: "idle", sport: "", parks: [] };
+  var geo = { status: "idle", sport: "", parks: [], dbg: [] };
+  var BUILD = "v4";
   function liveSpots() { return geo.parks.length && geo.sport === state.sport ? geo.parks.map(function (p) { return p.name; }) : SPOTS[state.sport]; }
   function parkFor(name) { return geo.parks.filter(function (p) { return p.name === name; })[0]; }
   function miles(a, b, c, d) {
@@ -398,7 +399,7 @@ a.linkbtn { display: inline-block; }
   var OSM_SPORT = { baseball: "baseball|softball", football: "american_football|football", basketball: "basketball", soccer: "soccer" };
   function findParks() {
     if (!navigator.geolocation) { geo.status = "err"; render(); return; }
-    geo.status = "locating"; geo.sport = state.sport; render();
+    geo.status = "locating"; geo.sport = state.sport; geo.dbg = []; render();
     navigator.geolocation.getCurrentPosition(function (pos) {
       var la = pos.coords.latitude, lo = pos.coords.longitude, sp = state.sport;
       geo.status = "loading"; render();
@@ -410,9 +411,9 @@ a.linkbtn { display: inline-block; }
         var ctl = window.AbortController ? new AbortController() : null;
         var t = setTimeout(function () { if (ctl) ctl.abort(); }, 14000);
         return fetch(hosts[i], { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(q), signal: ctl ? ctl.signal : undefined })
-          .then(function (r) { clearTimeout(t); if (!r.ok) throw new Error("bad"); return r.json(); })
+          .then(function (r) { clearTimeout(t); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
           .then(function (j) { if (j.remark && !(j.elements && j.elements.length)) throw new Error("busy"); return j; })
-          .catch(function () { clearTimeout(t); return ask(i + 1); });
+          .catch(function (e) { clearTimeout(t); geo.dbg.push("map" + (i + 1) + ": " + (e && e.message || e)); return ask(i + 1); });
       }
       ask(0).then(function (j) {
           var seen = {}, out = [];
@@ -430,7 +431,7 @@ a.linkbtn { display: inline-block; }
           var terms = ["park", { baseball: "baseball field", football: "football field", basketball: "basketball court", soccer: "soccer field" }[sp]];
           return Promise.all(terms.map(function (t) {
             return fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=20&bounded=1&q=" + encodeURIComponent(t) + "&viewbox=" + vb)
-              .then(function (r) { if (!r.ok) throw new Error("bad"); return r.json(); }).catch(function () { return null; });
+              .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).catch(function (e) { geo.dbg.push("search: " + (e && e.message || e)); return null; });
           })).then(function (rs) {
             if (!rs[0] && !rs[1]) throw new Error("none");
             var seen = {}, out = [];
@@ -671,7 +672,7 @@ a.linkbtn { display: inline-block; }
       h += '<article class="card"><h3 class="name">At the park right now?</h3>' +
         '<p class="where">Mark yourself available and anyone nearby can ping you. Accept the one you like and meet up.</p>' +
         '<button class="btn ghost small" data-action="find-parks"' + (geo.status === "locating" || geo.status === "loading" ? " disabled" : "") + '>Use my location</button>' +
-        (geo.status !== "idle" ? '<p class="fine" role="status">' + GEO_MSG[geo.status] + '</p>' : '') +
+        (geo.status !== "idle" ? '<p class="fine" role="status">' + GEO_MSG[geo.status] + (geo.status === "neterr" ? ' (' + BUILD + ' ' + esc(geo.dbg.join("; ")) + ')' : '') + '</p>' : '') +
         '<div class="field"><label for="f-lspot">Where are you</label><select class="input" id="f-lspot" data-field="lspot">' +
         spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (spot === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select></div>' +
         (parkFor(spot) ? '<a class="linkbtn" href="https://www.google.com/maps/search/?api=1&query=' + parkFor(spot).lat + ',' + parkFor(spot).lon + '" target="_blank" rel="noopener noreferrer">Open this park in Maps</a>' : '') +
