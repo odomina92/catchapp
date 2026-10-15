@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>*,*::before,*::after{box-sizing:border-box}body{margin:0}</style></head><body>
+<script src="config.js"></script>
 <title>CatchApp</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -268,6 +269,10 @@ h2.title { font-family: var(--font-display); font-weight: 400; font-size: 36px; 
 
 a.linkbtn { display: inline-block; }
 .story a.linkbtn { align-self: flex-start; }
+.safebar { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.sos { color: var(--accent); border-color: var(--accent); }
+.safe-list { display: flex; flex-direction: column; gap: 12px; }
+.safe-list .card p { color: var(--ink-2); }
 .home-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; }
 .linkbtn.story-link { font-size: 18px; font-weight: 700; color: var(--ink); padding: 12px 0; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .story { display: flex; flex-direction: column; gap: 16px; max-width: 60ch; }
@@ -423,7 +428,7 @@ a.linkbtn { display: inline-block; }
           });
           out.sort(function (a, b) { return a.d - b.d; });
           geo.parks = out.slice(0, 8); geo.sport = sp; geo.status = out.length ? "ok" : "none";
-          if (out.length) state.live.spot = out[0].name;
+          if (out.length) { state.live.spot = out[0].name; if (REMOTE) state.draft.spot = out[0].name; }
           render();
         })
         .catch(function () {
@@ -441,7 +446,7 @@ a.linkbtn { display: inline-block; }
             }); });
             out.sort(function (a, b) { return a.d - b.d; });
             geo.parks = out.slice(0, 8); geo.sport = sp; geo.status = out.length ? "ok" : "none";
-            if (out.length) state.live.spot = out[0].name;
+            if (out.length) { state.live.spot = out[0].name; if (REMOTE) state.draft.spot = out[0].name; }
             render();
           });
         }).catch(function () { geo.status = "neterr"; render(); });
@@ -495,6 +500,41 @@ a.linkbtn { display: inline-block; }
     { id: "n8", sport: "soccer", name: "Kwame A.", rating: 4.8, day: "now", time: "", dur: 50, walk: 12, spot: SPOTS.soccer[2] }
   ];
 
+  /* ---------- pilot mode: real accounts and shared data. Only on when config.js supplies a Supabase project. ---------- */
+  var CFG = window.CATCHAPP_CONFIG || {};
+  var REMOTE = !!(CFG.url && CFG.key && /^https:\/\//.test(CFG.url) && !/PASTE/.test(CFG.url + CFG.key));
+  var sb = null, me = null;
+  var remote = { ready: !REMOTE, failed: false, banned: false, posts: [], live: [], syn: {}, incoming: [], known: {}, sig: "", busy: false, again: false, first: true, sync: false };
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function dayLabelFromIso(iso) {
+    var d = new Date(iso), n = new Date();
+    var diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 864e5);
+    var t = fmtTime(pad2(d.getHours()) + ":" + pad2(d.getMinutes()));
+    if (diff === 0) return "Today " + t;
+    if (diff === 1) return "Tomorrow " + t;
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " " + t;
+  }
+  function startsAt(day, time) {
+    var d = new Date(), m = /^(\d{1,2}):(\d{2})$/.exec(time || "") || [0, 17, 30];
+    if (day === "tomorrow") d.setDate(d.getDate() + 1);
+    else if (day === "weekend") d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7));
+    d.setHours(+m[1], +m[2], 0, 0);
+    return d.toISOString();
+  }
+  function isBlocked(c) { return state.blocked.indexOf(c.uid || c.id) > -1; }
+  function listings() { return (REMOTE ? remote.posts : SAMPLE).filter(function (c) { return c.sport === state.sport && !isBlocked(c); }); }
+  function liveList() { return (REMOTE ? remote.live : LIVE).filter(function (c) { return c.sport === state.sport && !isBlocked(c); }); }
+  function ratingChip(c) { return '<span class="rating">' + ball(16, true) + (c.rating ? c.rating.toFixed(1) : "New") + '</span>'; }
+  function geoActive() { return geo.parks.length && geo.sport === state.sport ? geo.parks.map(function (p) { return p.name; }) : null; }
+  function spotField(id, field, label, cur, spots) {
+    if (REMOTE && !geoActive()) {
+      return '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" data-field="' + field + '" maxlength="80" autocomplete="off" placeholder="Park or field name" value="' + esc(cur) + '"></div>';
+    }
+    var pick = spots.indexOf(cur) > -1 ? cur : spots[0];
+    return '<div class="field"><label for="' + id + '">' + label + '</label><select class="input" id="' + id + '" data-field="' + field + '">' +
+      spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (pick === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select></div>';
+  }
+
   var STORE_KEY = "catchapp-v4";
   var state = {
     tab: "home", sport: "baseball", requests: [], mine: [], blocked: [], received: [],
@@ -507,13 +547,15 @@ a.linkbtn { display: inline-block; }
     try {
       var d = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
       if (!d) return;
-      ["requests", "mine", "blocked", "received"].forEach(function (k) { if (Array.isArray(d[k])) state[k] = d[k]; });
-      if (d.profile) state.profile = Object.assign(state.profile, d.profile);
+      if (!REMOTE) {
+        ["requests", "mine", "blocked", "received"].forEach(function (k) { if (Array.isArray(d[k])) state[k] = d[k]; });
+        if (d.profile) state.profile = Object.assign(state.profile, d.profile);
+      }
       if (d.sport && SPORTS[d.sport]) state.sport = d.sport;
     } catch (e) {}
   }
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ requests: state.requests, mine: state.mine, blocked: state.blocked, received: state.received, profile: state.profile, sport: state.sport })); } catch (e) {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(REMOTE ? { sport: state.sport } : { requests: state.requests, mine: state.mine, blocked: state.blocked, received: state.received, profile: state.profile, sport: state.sport })); } catch (e) {}
   }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function initials(n) { var p = String(n).trim().split(/\s+/); return p[0] ? ((p[0][0] + (p[1] ? p[1][0] : "")).toUpperCase()) : "Y"; }
@@ -545,9 +587,9 @@ a.linkbtn { display: inline-block; }
     return svg + '</svg>';
   }
   function balls(n) { var s = '<span class="balls-row">'; for (var i = 1; i <= 5; i++) s += ball(18, i <= n); return s + '</span>'; }
-  function byId(id) { var all = state.mine.concat(SAMPLE, LIVE); for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i]; return null; }
+  function byId(id) { if (REMOTE && remote.syn[id]) return remote.syn[id]; var all = state.mine.concat(remote.posts, remote.live, SAMPLE, LIVE); for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i]; return null; }
   function reqFor(id) { for (var i = 0; i < state.requests.length; i++) if (state.requests[i].catchId === id) return state.requests[i]; return null; }
-  function whenLabel(c) { return c.day === "now" ? "Right now" : DAYS[c.day] + " " + c.time; }
+  function whenLabel(c) { return c.day === "now" ? "Right now" : c.label ? c.label : DAYS[c.day] + " " + c.time; }
   function avgReceived() { if (!state.received.length) return null; var t = 0; state.received.forEach(function (x) { t += x.stars; }); return t / state.received.length; }
 
   /* ---------- scenes ---------- */
@@ -631,7 +673,7 @@ a.linkbtn { display: inline-block; }
   }
 
   function nearbyView() {
-    var list = SAMPLE.filter(function (c) { return c.sport === state.sport && state.blocked.indexOf(c.id) === -1; });
+    var list = listings();
     var city = state.profile.city.trim();
     var h = sportPicker() + '<div><h2 class="title">Nearby</h2><p class="lead">' + (city ? esc(city) : '<button class="linkbtn" data-action="goto" data-value="me">Set your city</button>') + '</p></div>' + modeSwitch();
     if (state.nearbyMode === "now") return h + liveView();
@@ -642,9 +684,9 @@ a.linkbtn { display: inline-block; }
       else if (r.status === "pending") btn = '<button class="btn" disabled>Request sent</button>';
       else if (r.status === "confirmed") btn = '<button class="btn" disabled>Confirmed</button>';
       else btn = '<button class="btn" disabled>You caught up</button>';
-      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3><span class="rating">' + ball(16, true) + c.rating.toFixed(1) + '</span></div>' +
-        '<div><p class="when">' + esc(whenLabel(c)) + ' · ' + c.dur + ' min</p><p class="where">' + esc(c.spot) + ' · ' + c.dist.toFixed(1) + ' mi</p></div>' + btn + '</article>';
-    }).join("") + '</div><p class="fine">Sample listings. Nobody here is a real person yet.</p>';
+      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3>' + ratingChip(c) + '</div>' +
+        '<div><p class="when">' + esc(whenLabel(c)) + ' · ' + c.dur + ' min</p><p class="where">' + esc(c.spot) + (c.dist != null ? ' · ' + c.dist.toFixed(1) + ' mi' : '') + '</p></div>' + btn + '</article>';
+    }).join("") + '</div><p class="fine">' + (REMOTE ? 'Real people from the pilot invite list. Meet in public places and see Safety tips.' : 'Sample listings. Nobody here is a real person yet.') + '</p>';
     return h;
   }
 
@@ -659,8 +701,8 @@ a.linkbtn { display: inline-block; }
     var spot = spots.indexOf(L.spot) > -1 ? L.spot : spots[0];
     var pc = state.ping && byId(state.ping.id);
     if (pc) {
-      h += '<article class="card"><div class="row"><h3 class="name">' + esc(pc.name) + ' pinged you</h3><span class="rating">' + ball(16, true) + pc.rating.toFixed(1) + '</span></div>' +
-        '<p class="where">Wants to play. About ' + pc.walk + ' min away at ' + esc(pc.spot) + '.</p>' +
+      h += '<article class="card"><div class="row"><h3 class="name">' + esc(pc.name) + ' pinged you</h3>' + ratingChip(pc) + '</div>' +
+        '<p class="where">Wants to play' + (pc.walk ? '. About ' + pc.walk + ' min away at ' : ' at ') + esc(pc.spot) + '.</p>' +
         '<div class="actions"><button class="btn small" data-action="accept-ping">Accept</button><button class="btn ghost small" data-action="decline-ping">Not now</button></div></article>';
     }
     if (L.on) {
@@ -673,13 +715,12 @@ a.linkbtn { display: inline-block; }
         '<p class="where">Mark yourself available and anyone nearby can ping you. Accept the one you like and meet up.</p>' +
         '<button class="btn ghost small" data-action="find-parks"' + (geo.status === "locating" || geo.status === "loading" ? " disabled" : "") + '>Use my location</button>' +
         (geo.status !== "idle" ? '<p class="fine" role="status">' + GEO_MSG[geo.status] + (geo.status === "neterr" ? ' (' + BUILD + ' ' + esc(geo.dbg.join("; ")) + ')' : '') + '</p>' : '') +
-        '<div class="field"><label for="f-lspot">Where are you</label><select class="input" id="f-lspot" data-field="lspot">' +
-        spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (spot === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select></div>' +
+        spotField("f-lspot", "lspot", "Where are you", spot, spots) +
         (parkFor(spot) ? '<a class="linkbtn" href="https://www.google.com/maps/search/?api=1&query=' + parkFor(spot).lat + ',' + parkFor(spot).lon + '" target="_blank" rel="noopener noreferrer">Open this park in Maps</a>' : '') +
         '<div class="field"><span class="lab">Stay available for</span>' + chipRow([["30", "30 min"], ["60", "60 min"]], String(L.dur), "ldur") + '</div>' +
         '<button class="btn" data-action="go-live">I’m here, ping me</button></article>';
     }
-    var list = LIVE.filter(function (c) { return c.sport === state.sport && state.blocked.indexOf(c.id) === -1; });
+    var list = liveList();
     h += '<h3 class="sub">Here right now</h3>';
     if (!list.length) h += '<p class="fine">Nobody is live right now.</p>';
     else h += '<div class="list">' + list.map(function (c) {
@@ -688,10 +729,10 @@ a.linkbtn { display: inline-block; }
       else if (r.status === "pending") btn = '<button class="btn" disabled>Pinged</button>';
       else if (r.status === "confirmed") btn = '<button class="btn" disabled>On the way</button>';
       else btn = '<button class="btn" disabled>You caught up</button>';
-      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3><span class="rating">' + ball(16, true) + c.rating.toFixed(1) + '</span></div>' +
-        '<div><p class="when"><span class="live-dot" aria-hidden="true"></span>' + c.walk + ' min walk · ' + c.dur + ' min left</p><p class="where">' + esc(c.spot) + '</p></div>' + btn + '</article>';
+      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3>' + ratingChip(c) + '</div>' +
+        '<div><p class="when"><span class="live-dot" aria-hidden="true"></span>' + (c.walk ? c.walk + ' min walk · ' : '') + c.dur + ' min left</p><p class="where">' + esc(c.spot) + '</p></div>' + btn + '</article>';
     }).join("") + '</div>';
-    return h + '<p class="fine">Other people shown here are samples. Your location is only used to find nearby parks and is never saved or shown.</p>';
+    return h + '<p class="fine">' + (REMOTE ? 'Real people from the pilot invite list. ' : 'Other people shown here are samples. ') + 'Your location is only used to find nearby parks and is never saved or shown.</p>';
   }
 
   function scheduleIncomingPing() {
@@ -712,13 +753,13 @@ a.linkbtn { display: inline-block; }
   }
 
   function postView() {
-    var d = state.draft, spots = SPOTS[state.sport];
+    var d = state.draft, spots = liveSpots();
     return '<h2 class="title">Post a ' + (state.sport === "baseball" ? "catch" : state.sport === "football" ? "toss" : state.sport === "basketball" ? "shootaround" : "kickabout") + '</h2>' + sportPicker() + '<div class="form">' +
       '<div class="row2"><div class="field"><label for="f-day">Day</label><select class="input" id="f-day" data-field="day">' +
       Object.keys(DAYS).map(function (k) { return '<option value="' + k + '"' + (d.day === k ? " selected" : "") + '>' + DAYS[k] + '</option>'; }).join("") + '</select></div>' +
       '<div class="field"><label for="f-time">Start</label><input class="input" id="f-time" type="time" value="' + esc(d.time) + '" data-field="time"></div></div>' +
-      '<div class="field"><label for="f-spot">Where</label><select class="input" id="f-spot" data-field="spot">' +
-      spots.map(function (p) { return '<option' + (d.spot === p ? " selected" : "") + '>' + esc(p) + '</option>'; }).join("") + '</select></div>' +
+      (REMOTE ? '<button class="btn ghost small" data-action="find-parks"' + (geo.status === "locating" || geo.status === "loading" ? " disabled" : "") + '>Use my location</button>' + (geo.status !== "idle" ? '<p class="fine" role="status">' + GEO_MSG[geo.status] + '</p>' : '') : '') +
+      spotField("f-spot", "spot", "Where", d.spot, spots) +
       '<div class="field"><span class="lab">How long</span>' + chipRow([["15", "15 min"], ["30", "30 min"], ["45", "45 min"], ["60", "60 min"]], String(d.dur), "dur") + '</div>' +
       '<button class="btn" data-action="post">Post it</button></div>' +
       '<p class="fine">Public parks, fields and courts only. Your address is never shown.</p>';
@@ -754,8 +795,11 @@ a.linkbtn { display: inline-block; }
         : '<p class="fine">Waiting on ' + esc(first(c.name)) + '’s rating</p>';
     } else if (conf) {
       if (state.rating && state.rating.id === c.id) return h + ratingHtml(c) + '</article>';
-      if (c.day === "now") h += '<p class="fine">Head to ' + esc(c.spot) + '. About ' + c.walk + ' min away.</p>';
-      h += '<button class="btn" data-action="rate-open" data-id="' + c.id + '">We met up. Rate it</button>' +
+      if (c.day === "now") h += '<p class="fine">Head to ' + esc(c.spot) + (c.walk ? '. About ' + c.walk + ' min away.' : '.') + '</p>';
+      h += '<div class="safebar"><button class="btn ghost small" data-action="share" data-id="' + c.id + '">Share with a friend</button>' +
+        '<button class="btn ghost small" data-action="goto" data-value="safety">Safety tips</button>' +
+        '<button class="btn ghost small sos" data-action="call911">Call 911</button></div>' +
+        '<button class="btn" data-action="rate-open" data-id="' + c.id + '">We met up. Rate it</button>' +
         '<div class="actions"><button class="linkbtn" data-action="nomeet" data-id="' + c.id + '">We didn’t meet</button><button class="linkbtn" data-action="report-open" data-id="' + c.id + '">Block or report</button></div>';
       if (state.reportOpen === c.id) h += '<div class="actions"><button class="btn ghost small" data-action="block" data-id="' + c.id + '">Block ' + esc(first(c.name)) + '</button><button class="btn ghost small" data-action="report" data-id="' + c.id + '">Report</button><button class="linkbtn" data-action="report-close">Never mind</button></div>';
     } else {
@@ -768,7 +812,15 @@ a.linkbtn { display: inline-block; }
     var h = '<h2 class="title">Catches</h2>';
     var active = state.requests.filter(function (r) { return r.status !== "done"; });
     var done = state.requests.filter(function (r) { return r.status === "done"; });
-    if (!state.requests.length && !state.mine.length) {
+    if (REMOTE && remote.incoming.length) {
+      h += '<h3 class="sub">Wants to catch up</h3><div class="list">' + remote.incoming.map(function (q) {
+        var c = byId(q.catchId); if (!c) return "";
+        return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3>' + ratingChip(c) + '</div>' +
+          '<div><p class="when">' + esc(whenLabel(c)) + (c.dur ? ' · ' + c.dur + ' min' : '') + '</p><p class="where">' + SPORTS[c.sport].label + ' · ' + esc(c.spot) + '</p></div>' +
+          '<div class="actions"><button class="btn small" data-action="accept-req" data-id="' + q.rid + '">Accept</button><button class="btn ghost small" data-action="decline-req" data-id="' + q.rid + '">Not now</button></div></article>';
+      }).join("") + '</div>';
+    }
+    if (!state.requests.length && !state.mine.length && !(REMOTE && remote.incoming.length)) {
       return h + '<div class="empty"><p>Nothing yet.</p><button class="btn small" data-action="goto" data-value="nearby">Find someone nearby</button></div>';
     }
     if (active.length) h += '<h3 class="sub">Coming up</h3><div class="list">' + active.map(requestCard).join("") + '</div>';
@@ -791,9 +843,10 @@ a.linkbtn { display: inline-block; }
       '<div class="field"><label for="pf-name">Your name</label><input class="input" id="pf-name" data-pfield="name" maxlength="24" autocomplete="given-name" placeholder="First name and last initial" value="' + esc(p.name) + '"></div>' +
       '<div class="field"><label for="pf-city">Your city</label><input class="input" id="pf-city" data-pfield="city" list="cities" maxlength="40" autocomplete="off" placeholder="Start typing a city" value="' + esc(p.city) + '"></div>' +
       '<div class="field"><label for="pf-bio">About you (optional)</label><input class="input" id="pf-bio" data-pfield="bio" maxlength="80" placeholder="Left-handed, slow arm, good at small talk" value="' + esc(p.bio) + '"></div>' +
+      (setup && REMOTE ? '<div class="field"><label for="pf-invite">Invite code</label><input class="input" id="pf-invite" data-pfield="invite" maxlength="40" autocomplete="off" autocapitalize="characters" placeholder="From the person who invited you" value="' + esc(p.invite || "") + '"></div>' : '') +
       (setup ? '<label class="agree"><input type="checkbox" id="pf-agree"' + (p.agreed ? ' checked' : '') + '><span>I am 18 or older and agree to the Terms and safety rules.</span></label>' +
         '<button class="linkbtn" data-action="goto" data-value="terms">Read the Terms and safety rules</button>' +
-        '<button class="btn" data-action="save-profile"' + (p.agreed ? '' : ' disabled') + '>Save and start</button>' : '') + '</div>';
+        '<button class="btn" data-action="save-profile"' + (p.agreed ? '' : ' disabled') + '>' + (REMOTE ? 'Join the pilot' : 'Save and start') + '</button>' + (REMOTE ? '<p class="fine">Your account stays on this device and browser. No email or phone number needed.</p>' : '') : '') + '</div>';
     if (state.received.length) {
       h += '<h3 class="sub">Recent ratings</h3><div class="list">' + state.received.slice(0, 5).map(function (x) {
         return '<div class="card"><div class="row"><h3 class="name">' + esc(x.from) + '</h3>' + balls(x.stars) + '</div></div>';
@@ -801,7 +854,7 @@ a.linkbtn { display: inline-block; }
     }
     return h + '<p class="fine">Everyone rates every meetup. You can block or report anyone from a confirmed one.</p>' +
       '<div class="home-links"><button class="linkbtn story-link" data-action="goto" data-value="story">Our story</button>' +
-      '<button class="linkbtn story-link" data-action="goto" data-value="terms">Terms and safety</button>' + feedbackLink() + '</div>';
+      '<button class="linkbtn story-link" data-action="goto" data-value="safety">Safety tips</button><button class="linkbtn story-link" data-action="goto" data-value="terms">Terms</button>' + feedbackLink() + '</div>';
   }
 
   var TERMS = [
@@ -816,11 +869,11 @@ a.linkbtn { display: inline-block; }
     ["Ratings and reports", ["Rate honestly, based on your own experience. Do not retaliate against someone for how they rated you.", "You can block or report anyone from a confirmed catch. We may review reports and take action, but we cannot promise to investigate every report or to respond within a set time. Ratings are the opinions of other users, not something we have verified."]],
     ["We do not check people", ["We do not run background checks or verify anyone’s identity, age, skill, health or intentions. Profile details and ratings are not guarantees. Use your own judgment."]],
     ["Playing has risks", ["Sports carry a real risk of injury, including from thrown or kicked balls, falls, collisions, heat and overexertion. You take part voluntarily and at your own risk. Check with a doctor if you are unsure you are fit to play, use suitable gear, and stop if you are hurt or uncomfortable. You are responsible for your own equipment and belongings."]],
-    ["No guarantees", ["CatchApp is provided “as is” and “as available.” We do not promise that it will always work, that it will be free of errors, or that anyone will answer your post or show up. The listings you see in this prototype are samples, not real people."]],
+    ["No guarantees", ["CatchApp is provided “as is” and “as available.” We do not promise that it will always work, that it will be free of errors, or that anyone will answer your post or show up. " + (REMOTE ? "This is an early pilot, so expect bugs and changes." : "The listings you see in this prototype are samples, not real people.") + ""]],
     ["Limits on our responsibility", ["To the fullest extent the law allows, CatchApp and its creators are not responsible for injuries, property damage, lost or stolen items, or other harm that happens at or because of a meetup, or for anything other users say or do. Some places do not allow certain limits, so part of this may not apply to you."]],
-    ["Your information", ["In this early version, your profile, posts and ratings are stored on your own device. If CatchApp adds accounts, we will publish a privacy policy that explains what we collect and why. We never show your exact address to other users."]],
+    ["Your information", [REMOTE ? "In this invite-only pilot, your first name, city, posts, requests, ratings and reports are stored on our servers so other testers can see them. Other members can see your name, city and rating. We do not collect your email address, phone number or exact location. Your account is tied to the browser you joined from. To have your data deleted, email us at the address below. We never show your exact address to other users." : "In this early version, your profile, posts and ratings are stored on your own device. If CatchApp adds accounts, we will publish a privacy policy that explains what we collect and why. We never show your exact address to other users."]],
     ["Changes and ending use", ["We may change these terms and will update the date above when we do. You can stop using CatchApp at any time. We may suspend or end access for anyone who breaks these terms or puts others at risk."]],
-    ["Contact", ["Questions or safety concerns: [contact email]. These terms are governed by the laws of [State]."]]
+    ["Contact", ["Questions or safety concerns: catchappquestion@gmail.com. These terms are governed by the laws of the State of Connecticut."]]
   ];
 
   function termsView() {
@@ -836,6 +889,21 @@ a.linkbtn { display: inline-block; }
       h += '</div></details>';
     });
     return h + '</div>';
+  }
+
+  var SAFETY = [
+    ["Meet in public", "Pick a park, field or court where other people are around. Daylight is best."],
+    ["Tell someone", "Send a friend where you will be, who you are meeting and when. The Share button on a confirmed catch does this in one tap."],
+    ["Bring your own ride", "Get yourself there and back. Do not accept a ride from someone you just met."],
+    ["Keep it about the game", "Do not share your home address, workplace or money details. You can say no to anything."],
+    ["Trust your gut", "If something feels off, leave. You do not owe anyone an explanation or a goodbye."],
+    ["Rate and report", "Rate every meetup honestly. If someone made you uncomfortable, block or report them so others are protected."]
+  ];
+  function safetyView() {
+    return '<button class="linkbtn" data-action="goto" data-value="catches">← Back</button><div><h2 class="title">Stay safe</h2><p class="lead">A few habits make every catch better.</p></div>' +
+      '<div class="safe-list">' + SAFETY.map(function (t) { return '<article class="card"><h3 class="name">' + esc(t[0]) + '</h3><p>' + esc(t[1]) + '</p></article>'; }).join("") + '</div>' +
+      '<button class="btn ghost sos" data-action="call911">In danger? Call 911</button>' +
+      '<button class="linkbtn" data-action="goto" data-value="terms">Read the full Terms and safety rules</button>';
   }
 
   function storyView() {
@@ -860,7 +928,7 @@ a.linkbtn { display: inline-block; }
       if (btns[i].getAttribute("data-value") === state.tab) btns[i].setAttribute("aria-current", "page"); else btns[i].removeAttribute("aria-current");
       var old = btns[i].querySelector(".dot"); if (old) old.remove();
     }
-    if (state.requests.some(function (r) { return r.status === "confirmed" && !r.seen; })) {
+    if (state.requests.some(function (r) { return r.status === "confirmed" && !r.seen; }) || (REMOTE && remote.incoming.length)) {
       var d = document.createElement("i"); d.className = "dot"; document.getElementById("dock-catches").appendChild(d);
     }
     if (state.live.on) { var ld = document.createElement("i"); ld.className = "dot live"; document.getElementById("dock-nearby").appendChild(ld); }
@@ -880,8 +948,15 @@ a.linkbtn { display: inline-block; }
   }
 
   function render() {
-    var views = { home: homeView, nearby: nearbyView, post: postView, catches: catchesView, me: profileView, story: storyView, terms: termsView };
-    document.getElementById("main").innerHTML = views[state.tab]();
+    var views = { home: homeView, nearby: nearbyView, post: postView, catches: catchesView, me: profileView, story: storyView, terms: termsView, safety: safetyView };
+    var main = document.getElementById("main");
+    if (REMOTE && (!remote.ready || remote.failed || remote.banned)) {
+      main.innerHTML = !remote.ready ? '<p class="fine">Loading…</p>' : remote.failed
+        ? '<div class="empty"><p>Can’t reach the pilot server right now.</p><button class="btn small" data-action="reload">Try again</button></div>'
+        : '<div class="empty"><p>This account is paused. Questions: catchappquestion@gmail.com</p></div>';
+      updateChrome(); return;
+    }
+    main.innerHTML = views[state.tab]();
     updateChrome();
   }
 
@@ -956,10 +1031,216 @@ a.linkbtn { display: inline-block; }
     requestAnimationFrame(tick);
   }
 
+  /* ---------- pilot mode: sign-in, syncing and actions ---------- */
+  function nm(P, id) { return (P[id] && P[id].name) || "Someone"; }
+  function avg(P, id) { return P[id] && P[id].avg_stars ? +P[id].avg_stars : 0; }
+  function setProfile(row) { state.profile = { name: row.name, city: row.city || "", bio: row.bio || "", done: true, agreed: true }; }
+  function noAccount() { remote.ready = true; state.tab = "me"; state.profile.done = false; render(); }
+  function remoteFail() { remote.ready = true; remote.failed = true; render(); }
+  function initRemote() {
+    var sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";
+    sc.onload = function () {
+      try { sb = window.supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: true, autoRefreshToken: true } }); } catch (e) { return remoteFail(); }
+      sb.auth.getSession().then(function (r) {
+        var u = r.data && r.data.session && r.data.session.user;
+        if (!u) return noAccount();
+        me = u.id;
+        return sb.from("profiles").select("*").eq("id", me).maybeSingle().then(function (pr) {
+          if (pr.error) throw pr.error;
+          if (!pr.data) return noAccount();
+          setProfile(pr.data); remote.ready = true; state.tab = "home"; startSync();
+        });
+      }).catch(remoteFail);
+    };
+    sc.onerror = remoteFail;
+    document.head.appendChild(sc);
+  }
+  function joinRemote() {
+    var p = state.profile, code = (p.invite || "").trim();
+    if (!p.name.trim()) { toast("Add your first name"); return; }
+    if (!code) { toast("Enter your invite code"); return; }
+    if (!p.agreed) { toast("Please confirm you are 18 or older and agree to the terms"); return; }
+    var start = me ? Promise.resolve() : sb.auth.signInAnonymously().then(function (r) { if (r.error) throw r.error; me = r.data.user.id; });
+    start.then(function () { return sb.rpc("claim_invite", { p_code: code, p_name: p.name.trim(), p_city: p.city.trim() }); })
+      .then(function (r) {
+        if (r.error) throw r.error;
+        p.done = true; delete p.invite; toast("Welcome, " + first(p.name.trim()));
+        startSync(); goto("home");
+      })
+      .catch(function (e) {
+        var m = (e && e.message) || "";
+        toast(/invite/i.test(m) ? "That invite code didn’t work" : /suspend/i.test(m) ? "This account is paused" : "Couldn’t join. Try again.");
+      });
+  }
+  function queuePull() { clearTimeout(remote.t); remote.t = setTimeout(function () { pull(); }, 300); }
+  function startSync() {
+    if (remote.sync) return; remote.sync = true;
+    pull(true);
+    try {
+      var ch = sb.channel("catchapp");
+      ["posts", "live", "requests", "ratings"].forEach(function (t) { ch.on("postgres_changes", { event: "*", schema: "public", table: t }, queuePull); });
+      ch.subscribe();
+    } catch (e) {}
+    setInterval(function () { if (!document.hidden) pull(); }, 15000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) pull(); });
+  }
+  function pull(force) {
+    if (!sb || !me) return Promise.resolve();
+    if (remote.busy) { remote.again = true; return Promise.resolve(); }
+    remote.busy = true;
+    var iso = new Date().toISOString(), cut = new Date(Date.now() - 3 * 36e5).toISOString();
+    return Promise.all([
+      sb.from("posts").select("*").gt("starts_at", cut).order("starts_at").limit(100),
+      sb.from("live").select("*").gt("until", iso).limit(100),
+      sb.from("requests").select("*").order("created_at", { ascending: false }).limit(100),
+      sb.from("ratings").select("*").limit(300),
+      sb.from("blocks").select("*"),
+      sb.from("profiles").select("banned").eq("id", me).maybeSingle()
+    ]).then(function (rs) {
+      rs.forEach(function (r) { if (r.error) throw r.error; });
+      var posts = rs[0].data || [], live = rs[1].data || [], reqs = rs[2].data || [], rates = rs[3].data || [], blocks = rs[4].data || [];
+      remote.banned = !!(rs[5].data && rs[5].data.banned);
+      var ids = {};
+      posts.concat(live).forEach(function (x) { ids[x.user_id] = 1; });
+      reqs.forEach(function (x) { ids[x.from_id] = 1; ids[x.to_id] = 1; });
+      rates.forEach(function (x) { ids[x.rater_id] = 1; ids[x.ratee_id] = 1; });
+      return sb.from("people").select("*").in("id", Object.keys(ids)).then(function (pr) {
+        if (pr.error) throw pr.error;
+        var P = {}; (pr.data || []).forEach(function (q) { P[q.id] = q; });
+        applyData(posts, live, reqs, rates, blocks, P, force);
+      });
+    }).catch(function (e) {
+      if (window.console) console.warn(e);
+      if (!remote.warned) { remote.warned = true; toast("Can’t reach the server. Retrying."); }
+    }).then(function () { remote.busy = false; if (remote.again) { remote.again = false; pull(); } });
+  }
+  function applyData(posts, live, reqs, rates, blocks, P, force) {
+    var now = Date.now(), prev = {};
+    state.requests.forEach(function (r) { if (r.rid) prev[r.rid] = r; });
+    state.blocked = blocks.map(function (b) { return b.blocked_id; });
+    state.mine = []; remote.posts = []; remote.live = []; remote.syn = {}; remote.incoming = []; state.ping = null;
+    remote.warned = false;
+    posts.forEach(function (p) {
+      var c = { id: "p:" + p.id, pid: p.id, uid: p.user_id, sport: p.sport, name: nm(P, p.user_id), rating: avg(P, p.user_id), day: "later", label: dayLabelFromIso(p.starts_at), starts: p.starts_at, dur: p.dur, spot: p.spot };
+      if (p.user_id === me) { c.mine = true; c.name = myName(); c.rating = 0; state.mine.push(c); } else remote.posts.push(c);
+    });
+    var mineLive = null;
+    live.forEach(function (l) {
+      if (l.user_id === me) { mineLive = l; return; }
+      remote.live.push({ id: "l:" + l.user_id, uid: l.user_id, live: true, sport: l.sport, name: nm(P, l.user_id), rating: avg(P, l.user_id), day: "now", dur: Math.max(1, Math.ceil((Date.parse(l.until) - now) / 60000)), spot: l.spot });
+    });
+    if (mineLive) { state.live.on = true; state.live.until = Date.parse(mineLive.until); state.live.spot = mineLive.spot; }
+    else if (state.live.on) state.live.on = false;
+    var mineRates = {}, theirRates = {}, out = [], known = {}, quiet = remote.first;
+    rates.forEach(function (x) { if (x.rater_id === me) mineRates[x.request_id] = x; else if (x.ratee_id === me) theirRates[x.request_id] = x; });
+    reqs.forEach(function (r) {
+      var outgoing = r.from_id === me, other = outgoing ? r.to_id : r.from_id;
+      var catchId = outgoing ? (r.post_id ? "p:" + r.post_id : "l:" + r.to_id) : "r:" + r.id;
+      var old = remote.known[r.id]; known[r.id] = r.status;
+      if (r.status === "cancelled") return;
+      if (r.status === "declined") { if (outgoing && old === "pending" && !quiet) toast(first(nm(P, other)) + " can’t make it right now"); return; }
+      var mr = mineRates[r.id], tr = theirRates[r.id];
+      if (r.status === "accepted" && !mr && now - Date.parse(r.created_at) > 48 * 36e5) return;
+      var syn = { id: catchId, uid: other, sport: r.sport, name: nm(P, other), rating: avg(P, other), day: r.live ? "now" : "later", label: r.live ? "" : dayLabelFromIso(r.starts_at), dur: r.dur, spot: r.spot };
+      remote.syn[catchId] = syn;
+      if (r.status === "pending") {
+        if (outgoing) out.push({ id: r.id, rid: r.id, uid: other, catchId: catchId, status: "pending", seen: true });
+        else {
+          remote.incoming.push({ rid: r.id, catchId: catchId, live: r.live, uid: other });
+          if (r.live && !state.ping) state.ping = { id: catchId, rid: r.id };
+          if (old === undefined && !quiet) toast(first(syn.name) + (r.live ? " pinged you" : " asked to catch up"));
+        }
+        return;
+      }
+      var item = { id: r.id, rid: r.id, uid: other, catchId: catchId, status: mr ? "done" : "confirmed", seen: prev[r.id] ? prev[r.id].seen : true };
+      if (!mr && outgoing && old === "pending" && !quiet) { item.seen = state.tab === "catches"; toast(first(syn.name) + (r.live ? " said yes. Head over." : " said yes. Time to catch up.")); }
+      if (mr) { item.stars = mr.stars; item.tags = mr.tags || []; item.safe = mr.safe; if (tr) item.theirStars = tr.stars; }
+      out.push(item);
+    });
+    state.requests = out; remote.known = known; remote.first = false; remote.ready = true;
+    state.received = rates.filter(function (x) { return x.ratee_id === me; }).sort(function (a, b) { return Date.parse(b.created_at) - Date.parse(a.created_at); })
+      .map(function (x) { return { from: first(nm(P, x.rater_id)), stars: x.stars }; });
+    var sig = JSON.stringify([state.requests, state.mine, remote.posts, remote.live, remote.incoming, state.live.on, state.live.until, state.blocked, state.received, remote.banned, state.ping]);
+    if (force || sig !== remote.sig) {
+      var ae = document.activeElement;
+      if (force || !(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName))) { remote.sig = sig; render(); }
+    }
+  }
+  function sbDo(p, okMsg, failMsg) {
+    function chk(r) { if (Array.isArray(r)) r.forEach(chk); else if (r && r.error) throw r.error; }
+    return Promise.resolve(p).then(function (r) { chk(r); if (okMsg) toast(okMsg); })
+      .catch(function (e) { if (window.console) console.warn(e); toast(failMsg || "Something went wrong. Try again."); })
+      .then(function () { return pull(true); });
+  }
+  function remoteAct(a, v, id) {
+    var d = state.draft, rt = state.rating, c, rq;
+    switch (a) {
+      case "reload": window.location.reload(); return true;
+      case "save-profile": joinRemote(); return true;
+      case "ask":
+        c = remote.posts.concat(remote.live).filter(function (x) { return x.id === id; })[0];
+        if (!c || reqFor(id)) return true;
+        state.requests.unshift({ id: "tmp" + Date.now(), catchId: id, status: "pending", seen: true }); render();
+        sbDo(sb.from("requests").insert({ from_id: me, to_id: c.uid, post_id: c.pid || null, live: !!c.live, sport: c.sport, spot: c.spot, starts_at: c.starts || null, dur: c.dur }),
+          c.live ? "Pinged " + first(c.name) : "Request sent to " + first(c.name), "Couldn’t send that. It may be gone.");
+        return true;
+      case "cancel": case "nomeet":
+        rq = reqFor(id); if (!rq || !rq.rid) return true; state.rating = null;
+        sbDo(sb.from("requests").update({ status: "cancelled" }).eq("id", rq.rid), a === "cancel" ? "Request cancelled" : "No problem. We skipped the rating.");
+        return true;
+      case "block":
+        c = byId(id); rq = reqFor(id); state.reportOpen = null;
+        if (!c || !c.uid) return true;
+        sbDo(Promise.all([sb.from("blocks").insert({ blocker_id: me, blocked_id: c.uid }), rq && rq.rid ? sb.from("requests").update({ status: "cancelled" }).eq("id", rq.rid) : Promise.resolve({})]), "Blocked. You will not see their posts.");
+        return true;
+      case "report":
+        c = byId(id); rq = reqFor(id); state.reportOpen = null;
+        if (!c || !c.uid) return true;
+        sbDo(sb.from("reports").insert({ reporter_id: me, reported_id: c.uid, request_id: rq && rq.rid ? rq.rid : null, reason: "report" }), "Report sent. Thanks for flagging it.");
+        return true;
+      case "remove-post":
+        c = state.mine.filter(function (x) { return x.id === id; })[0]; if (!c) return true;
+        sbDo(sb.from("posts").delete().eq("id", c.pid), "Post removed");
+        return true;
+      case "rate-submit":
+        if (!rt || !rt.stars) return true;
+        rq = reqFor(rt.id); state.rating = null;
+        if (!rq || !rq.rid) { render(); return true; }
+        var jobs = [sb.from("ratings").insert({ request_id: rq.rid, rater_id: me, ratee_id: rq.uid, stars: rt.stars, safe: rt.safe, tags: rt.tags })];
+        if (!rt.safe) jobs.push(sb.from("reports").insert({ reporter_id: me, reported_id: rq.uid, request_id: rq.rid, reason: "felt unsafe" }));
+        if (rt.block) jobs.push(sb.from("blocks").insert({ blocker_id: me, blocked_id: rq.uid }));
+        sbDo(Promise.all(jobs), rt.safe ? "Rating sent." : "Thanks for telling us. We will review this.");
+        return true;
+      case "go-live":
+        var gs = geoActive(); if (gs && gs.indexOf(state.live.spot) === -1) state.live.spot = gs[0];
+        if (!state.live.spot || !state.live.spot.trim()) { toast("Add where you are"); return true; }
+        sbDo(sb.from("live").upsert({ user_id: me, sport: state.sport, spot: state.live.spot.trim().slice(0, 80), until: new Date(Date.now() + state.live.dur * 60000).toISOString() }), "You are live. People nearby can ping you.");
+        return true;
+      case "stop-live": sbDo(sb.from("live").delete().eq("user_id", me), "You are no longer available"); return true;
+      case "accept-ping": case "accept-req": case "decline-ping": case "decline-req":
+        var rid = (a === "accept-ping" || a === "decline-ping") ? (state.ping && state.ping.rid) : id;
+        if (!rid) return true;
+        var inc = remote.incoming.filter(function (q) { return q.rid === rid; })[0], yes = a.indexOf("accept") === 0;
+        var work = [sb.from("requests").update({ status: yes ? "accepted" : "declined" }).eq("id", rid)];
+        if (yes && inc && inc.live) work.push(sb.from("live").delete().eq("user_id", me));
+        sbDo(Promise.all(work), yes ? "Accepted. Say hi when you meet up." : null);
+        return true;
+      case "post":
+        var ps = geoActive(); if (ps && ps.indexOf(d.spot) === -1) d.spot = ps[0];
+        if (!d.spot || !d.spot.trim()) { toast("Add where you will be"); return true; }
+        if (!d.time) { toast("Pick a start time first"); return true; }
+        sbDo(sb.from("posts").insert({ user_id: me, sport: state.sport, spot: d.spot.trim().slice(0, 80), starts_at: startsAt(d.day, d.time), dur: d.dur }), "Posted. Someone nearby can now ask to catch up.");
+        goto("catches"); return true;
+    }
+    return false;
+  }
+
   /* ---------- events ---------- */
   document.addEventListener("click", function (e) {
     var el = e.target.closest("[data-action]"); if (!el) return;
     var a = el.getAttribute("data-action"), v = el.getAttribute("data-value"), id = el.getAttribute("data-id");
+    if (REMOTE && remoteAct(a, v, id)) return;
     var d = state.draft, rt = state.rating;
     switch (a) {
       case "goto": goto(v); return;
@@ -975,6 +1256,15 @@ a.linkbtn { display: inline-block; }
         if (!reqFor(id)) { state.requests.unshift({ id: "r" + Date.now(), catchId: id, status: "pending", seen: false }); save(); toast("Request sent to " + first(byId(id).name)); scheduleConfirm(id); }
         break;
       case "cancel": state.requests = state.requests.filter(function (r) { return r.catchId !== id; }); save(); toast("Request cancelled"); break;
+      case "call911": window.location.href = "tel:911"; return;
+      case "share":
+        var sc = byId(id);
+        if (sc) {
+          var msg = "I’m meeting " + sc.name + " for " + SPORTS[sc.sport].label.toLowerCase() + " at " + sc.spot + ", " + (sc.day === "now" ? "right now" : whenLabel(sc)) + ". I’ll check in after.";
+          if (navigator.share) { navigator.share({ text: msg }).catch(function () {}); }
+          else window.location.href = "sms:?&body=" + encodeURIComponent(msg);
+        }
+        return;
       case "nomeet": state.requests = state.requests.filter(function (r) { return r.catchId !== id; }); state.rating = null; save(); toast("No problem. We skipped the rating."); break;
       case "report-open": state.reportOpen = id; break;
       case "report-close": state.reportOpen = null; break;
@@ -1032,7 +1322,16 @@ a.linkbtn { display: inline-block; }
   });
   document.addEventListener("input", function (e) {
     var f = e.target.getAttribute("data-pfield");
-    if (f) { state.profile[f] = e.target.value; save(); updateHeader(); }
+    if (f) {
+      state.profile[f] = e.target.value; save(); updateHeader();
+      if (REMOTE && state.profile.done && f !== "invite" && state.profile.name.trim()) {
+        clearTimeout(remote.pt);
+        remote.pt = setTimeout(function () { sb.from("profiles").update({ name: state.profile.name.trim().slice(0, 24), city: state.profile.city.trim().slice(0, 40), bio: state.profile.bio.trim().slice(0, 80) }).eq("id", me).then(function () {}); }, 800);
+      }
+    }
+    var df = e.target.getAttribute("data-field");
+    if (df === "spot") state.draft.spot = e.target.value;
+    if (df === "lspot") state.live.spot = e.target.value;
   });
   document.addEventListener("change", function (e) {
     if (e.target.id === "pf-agree") {
@@ -1046,7 +1345,8 @@ a.linkbtn { display: inline-block; }
   });
 
   load();
-  if (!state.profile.done) state.tab = "me";
+  if (REMOTE) { state.draft.spot = ""; state.live.spot = ""; initRemote(); }
+  else if (!state.profile.done) state.tab = "me";
   state.requests.forEach(function (r) {
     if (r.status === "pending") scheduleConfirm(r.catchId);
     else if (r.status === "done" && !r.theirStars && r.safe !== false) scheduleTheirRating(r.catchId);
