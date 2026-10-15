@@ -1061,8 +1061,9 @@ a.linkbtn { display: inline-block; }
     if (!p.name.trim()) { toast("Add your first name"); return; }
     if (!code) { toast("Enter your invite code"); return; }
     if (!p.agreed) { toast("Please confirm you are 18 or older and agree to the terms"); return; }
+    var stage = "sign-in";
     var start = me ? Promise.resolve() : sb.auth.signInAnonymously().then(function (r) { if (r.error) throw r.error; me = r.data.user.id; });
-    start.then(function () { return sb.rpc("claim_invite", { p_code: code, p_name: p.name.trim(), p_city: p.city.trim() }); })
+    start.then(function () { stage = "database"; return sb.rpc("claim_invite", { p_code: code, p_name: p.name.trim(), p_city: p.city.trim() }); })
       .then(function (r) {
         if (r.error) throw r.error;
         p.done = true; delete p.invite; toast("Welcome, " + first(p.name.trim()));
@@ -1072,7 +1073,7 @@ a.linkbtn { display: inline-block; }
         var m = (e && e.message) || "";
         if (window.console) console.warn(e);
         remote.joinErr = m;
-        toast(/invite/i.test(m) ? "That invite code didn’t work" : /suspend/i.test(m) ? "This account is paused" : "Couldn’t join: " + (m || "unknown error").slice(0, 120));
+        toast(/invite/i.test(m) ? "That invite code didn’t work" : /suspend/i.test(m) ? "This account is paused" : "Couldn’t join (" + stage + "): " + (m || "unknown error").slice(0, 120));
       });
   }
   function queuePull() { clearTimeout(remote.t); remote.t = setTimeout(function () { pull(); }, 300); }
