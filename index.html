@@ -425,7 +425,25 @@ a.linkbtn { display: inline-block; }
           if (out.length) state.live.spot = out[0].name;
           render();
         })
-        .catch(function () { geo.status = "neterr"; render(); });
+        .catch(function () {
+          var dl = 0.06, vb = (lo - dl * 1.3) + "," + (la + dl) + "," + (lo + dl * 1.3) + "," + (la - dl);
+          var terms = ["park", { baseball: "baseball field", football: "football field", basketball: "basketball court", soccer: "soccer field" }[sp]];
+          return Promise.all(terms.map(function (t) {
+            return fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=20&bounded=1&q=" + encodeURIComponent(t) + "&viewbox=" + vb)
+              .then(function (r) { if (!r.ok) throw new Error("bad"); return r.json(); }).catch(function () { return null; });
+          })).then(function (rs) {
+            if (!rs[0] && !rs[1]) throw new Error("none");
+            var seen = {}, out = [];
+            rs.forEach(function (arr) { (arr || []).forEach(function (r) {
+              var n = r.name || (r.display_name || "").split(",")[0]; if (!n || seen[n]) return;
+              seen[n] = 1; out.push({ name: n, lat: +r.lat, lon: +r.lon, d: miles(la, lo, +r.lat, +r.lon) });
+            }); });
+            out.sort(function (a, b) { return a.d - b.d; });
+            geo.parks = out.slice(0, 8); geo.sport = sp; geo.status = out.length ? "ok" : "none";
+            if (out.length) state.live.spot = out[0].name;
+            render();
+          });
+        }).catch(function () { geo.status = "neterr"; render(); });
     }, function (err) { geo.status = err && err.code === 1 ? "denied" : "err"; render(); }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 });
   }
   var GEO_MSG = {
