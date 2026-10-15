@@ -1,6 +1,6 @@
 // Paste your two Supabase values between the quotes. The key must be the "anon public" key.
 // Never paste the "service_role" key here.
 window.CATCHAPP_CONFIG = {
-  url: "PASTE_PROJECT_URL_HERE",
-  key: "PASTE_ANON_PUBLIC_KEY_HERE"
+  url: "https://kpdtjrpntpniizyiiiin.supabase.co/rest/v1/",
+  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZHRqcnBudHBuaWl6eWlpaWluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwMjkzNjIsImV4cCI6MjEwNzYwNTM2Mn0.95djr6Wcr_c3RfNRjntg-zRv1Hg1r30-1QbYZccZaZo"
 };
