@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>*,*::before,*::after{box-sizing:border-box}body{margin:0}</style></head><body>
+<title>CatchApp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Figtree:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: one calm screen at a time. A logo splash plays first, then Home shows a sport picker, an animated scene, one headline and one button; a floating pill dock switches screens. Each sport sets its own accent, sky and ground tokens on the root. Palette is navy ink on warm white to match the logo. */
+:root {
+  --bg: #FFFBF8;
+  --surface: #FFFFFF;
+  --surface-2: #F7EEEA;
+  --ink: #25365A;
+  --ink-2: #667491;
+  --line: #EEE4E0;
+  --ketchup: #D93A2B;
+  --mustard: #F7BE1A;
+  --on-mustard: #25365A;
+  --mustard-bg: #FEF3D0;
+  --amber: #7A5600;
+  --green: #1F7A45;
+  --green-bg: #E4F4EA;
+  --blue: #3B6DB3;
+  --logo-navy: #17294D;
+  --logo-red: #E5392D;
+  /* sport tokens: baseball by default */
+  --accent: #D93A2B;
+  --on-accent: #FFFFFF;
+  --sky: #FDF2CF;
+  --ground: #CFE6BC;
+
+  --font-display: "Lilita One", "Arial Rounded MT Bold", Impact, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+:root[data-sport="football"] { --accent: #94552C; --on-accent: #FFFFFF; --sky: #F6E8D6; --ground: #D3E3AE; }
+:root[data-sport="basketball"] { --accent: #CC4C08; --on-accent: #FFFFFF; --sky: #E4EFFA; --ground: #EFCF9E; }
+:root[data-sport="soccer"] { --accent: #23824A; --on-accent: #FFFFFF; --sky: #E0F3F8; --ground: #B8E3A0; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151C30;
+    --surface: #1F2840;
+    --surface-2: #2A3452;
+    --ink: #EAF0FA;
+    --ink-2: #A9B6D0;
+    --line: #313D5C;
+    --ketchup: #FF6F5C;
+    --mustard: #F6C21F;
+    --on-mustard: #25365A;
+    --mustard-bg: #3F3820;
+    --amber: #F6C21F;
+    --green: #6FD398;
+    --green-bg: #1B3B2E;
+    --blue: #8DB8F2;
+    --logo-navy: #EAF0FA;
+    --logo-red: #FF6F5C;
+    --accent: #FF6F5C; --on-accent: #2A0A06; --sky: #3A3724; --ground: #2F4A31;
+    color-scheme: dark;
+  }
+  :root:not([data-theme="light"])[data-sport="football"] { --accent: #E8A06C; --on-accent: #2A1408; --sky: #3A3228; --ground: #3C4A2C; }
+  :root:not([data-theme="light"])[data-sport="basketball"] { --accent: #FF8F45; --on-accent: #2A1204; --sky: #243752; --ground: #6B5333; }
+  :root:not([data-theme="light"])[data-sport="soccer"] { --accent: #62C48B; --on-accent: #07140C; --sky: #1E3F4A; --ground: #2D5A35; }
+}
+:root[data-theme="dark"] {
+  --bg: #151C30;
+  --surface: #1F2840;
+  --surface-2: #2A3452;
+  --ink: #EAF0FA;
+  --ink-2: #A9B6D0;
+  --line: #313D5C;
+  --ketchup: #FF6F5C;
+  --mustard: #F6C21F;
+  --on-mustard: #25365A;
+  --mustard-bg: #3F3820;
+  --amber: #F6C21F;
+  --green: #6FD398;
+  --green-bg: #1B3B2E;
+  --blue: #8DB8F2;
+  --logo-navy: #EAF0FA;
+  --logo-red: #FF6F5C;
+  --accent: #FF6F5C; --on-accent: #2A0A06; --sky: #3A3724; --ground: #2F4A31;
+  color-scheme: dark;
+}
+:root[data-theme="dark"][data-sport="football"] { --accent: #E8A06C; --on-accent: #2A1408; --sky: #3A3228; --ground: #3C4A2C; }
+:root[data-theme="dark"][data-sport="basketball"] { --accent: #FF8F45; --on-accent: #2A1204; --sky: #243752; --ground: #6B5333; }
+:root[data-theme="dark"][data-sport="soccer"] { --accent: #62C48B; --on-accent: #07140C; --sky: #1E3F4A; --ground: #2D5A35; }
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  padding-inline: 16px;
+  padding-block: 0 104px;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
+h1, h2, h3, p { margin: 0; }
+
+.app { max-width: 480px; margin-inline: auto; min-width: 0; }
+
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 14px 8px;
+}
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brand b { font-family: var(--font-body); font-weight: 800; font-size: 25px; line-height: 1; letter-spacing: -.01em; }
+.brand .b1 { color: var(--logo-navy); }
+.brand .b2 { color: var(--accent); }
+.top-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.city-btn {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 130px; border: 0; background: none; padding: 6px 2px;
+  font-size: 14px; font-weight: 600; color: var(--ink-2);
+}
+.city-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-btn {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--surface);
+  font-family: var(--font-display); font-size: 16px; display: grid; place-items: center;
+}
+.me-btn[aria-current="page"] { border-color: var(--ink); }
+
+main { display: flex; flex-direction: column; gap: 18px; padding-block: 8px 16px; }
+
+/* sport picker */
+.sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.sports button {
+  border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 9px 2px; min-height: 42px;
+  font-size: 13.5px; font-weight: 700; color: var(--ink-2); transition: background .2s, color .2s, border-color .2s;
+}
+.sports button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* home */
+.scene { border-radius: 24px; overflow: hidden; background: var(--sky); }
+.scene svg { display: block; width: 100%; height: auto; }
+.home-copy { display: flex; flex-direction: column; gap: 6px; text-align: center; }
+.home-actions .home-links { justify-content: center; align-self: center; margin-top: 4px; }
+.home-copy h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(32px, 9.6vw, 40px); line-height: 1; white-space: nowrap; }
+.home-copy h1 span { color: var(--accent); }
+.home-copy p { color: var(--ink-2); font-size: 17px; }
+.home-actions { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+
+/* scene animation */
+.bx { animation: bx 1.7s linear infinite alternate; }
+.by { animation: by 1.7s infinite; }
+.hop { animation: hop .85s infinite; }
+.tilt { animation: tilt 1.7s linear infinite alternate; transform-box: fill-box; transform-origin: center; }
+.roll { animation: roll 1.7s linear infinite alternate; transform-box: fill-box; transform-origin: center; }
+.shoot { animation: shoot 4.2s infinite; }
+.swap-a { animation: swapA 4.2s infinite; }
+.swap-b { animation: swapB 4.2s infinite; }
+@keyframes bx { from { transform: translateX(0); } to { transform: translateX(152px); } }
+@keyframes by {
+  0% { transform: translateY(0); animation-timing-function: cubic-bezier(.25,.75,.45,1); }
+  50% { transform: translateY(-46px); animation-timing-function: cubic-bezier(.55,0,.75,.25); }
+  100% { transform: translateY(0); }
+}
+@keyframes hop {
+  0%, 100% { transform: translateY(0); animation-timing-function: cubic-bezier(.25,.75,.45,1); }
+  50% { transform: translateY(-14px); animation-timing-function: cubic-bezier(.55,0,.75,.25); }
+}
+@keyframes tilt { from { transform: rotate(-30deg); } to { transform: rotate(30deg); } }
+@keyframes roll { from { transform: rotate(0); } to { transform: rotate(540deg); } }
+@keyframes shoot {
+  0%, 8% { transform: translate(0, 0); animation-timing-function: cubic-bezier(.3,.6,.5,1); }
+  26% { transform: translate(88px, -52px); animation-timing-function: cubic-bezier(.5,0,.8,.5); }
+  40% { transform: translate(164px, 6px); animation-timing-function: linear; }
+  47% { transform: translate(166px, 34px); animation-timing-function: ease-out; }
+  52%, 54% { transform: translate(154px, 41px); animation-timing-function: ease-in-out; }
+  60%, 64% { transform: translate(90px, 41px); animation-timing-function: cubic-bezier(.3,.6,.5,1); }
+  72% { transform: translate(44px, 12px); animation-timing-function: ease-in; }
+  80%, 100% { transform: translate(0, 0); }
+}
+@keyframes swapA { 0%, 54.9% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes swapB { 0%, 54.9% { opacity: 0; } 55%, 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .bx { animation: none; transform: translateX(76px); }
+  .by { animation: none; transform: translateY(-46px); }
+  .hop, .tilt, .roll, .swap-a { animation: none; }
+  .swap-b { animation: none; opacity: 0; }
+  .shoot { animation: none; transform: translate(88px, -52px); }
+  .sports button { transition: none; }
+}
+
+/* buttons */
+.btn {
+  border: 0; border-radius: 999px; padding: 13px 20px; font-weight: 700; font-size: 17px; min-height: 52px;
+  background: var(--accent); color: var(--on-accent); width: 100%;
+}
+.btn[disabled] { background: var(--surface-2); color: var(--ink-2); cursor: default; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+.btn.small { width: auto; min-height: 42px; padding: 8px 18px; font-size: 15px; }
+.linkbtn { background: none; border: 0; padding: 8px 0; color: var(--ink-2); text-decoration: underline; font-size: 15px; text-align: left; font-weight: 500; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 15px; font-size: 15px; font-weight: 600; min-height: 40px; }
+.chip[aria-pressed="true"] { background: var(--mustard); border-color: var(--mustard); color: var(--on-mustard); }
+
+/* screens */
+h2.title { font-family: var(--font-display); font-weight: 400; font-size: 36px; line-height: 1; text-wrap: balance; }
+.lead { color: var(--ink-2); }
+.list { display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.name { font-family: var(--font-display); font-weight: 400; font-size: 23px; line-height: 1.1; }
+.rating { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.when { font-weight: 700; font-size: 16px; }
+.where { color: var(--ink-2); font-size: 15px; overflow-wrap: anywhere; }
+.badge { flex: none; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); }
+.badge.good { background: var(--green-bg); color: var(--green); }
+.badge.wait { background: var(--mustard-bg); color: var(--amber); }
+.sub { font-family: var(--font-display); font-weight: 400; font-size: 21px; color: var(--accent); }
+.fine { font-size: 13px; color: var(--ink-2); }
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding-block: 8px; }
+.empty p { color: var(--ink-2); }
+.balls-row { display: flex; gap: 2px; align-items: center; }
+.ball { display: inline-block; flex: none; }
+
+.form { display: flex; flex-direction: column; gap: 20px; }
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.field label, .field .lab { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.input { width: 100%; border: 1.5px solid var(--line); background: var(--surface); border-radius: 14px; padding: 11px 14px; min-height: 50px; font-size: 16px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 340px) { .row2 { grid-template-columns: 1fr; } }
+
+.rate { border-top: 1.5px dashed var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+.rate h4 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 22px; line-height: 1.15; }
+.balls { display: flex; gap: 4px; }
+.balls button { background: none; border: 0; padding: 2px; border-radius: 10px; line-height: 0; }
+.rate-word { font-size: 14px; color: var(--ink-2); min-height: 1.4em; }
+.actions { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px; padding: 12px 16px; }
+.stat b { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: 400; font-size: 34px; line-height: 1.1; }
+.stat span { font-size: 13px; color: var(--ink-2); }
+.avatar-lg { width: 64px; height: 64px; border-radius: 50%; background: var(--mustard); color: var(--on-mustard); display: grid; place-items: center; font-family: var(--font-display); font-size: 26px; flex: none; }
+
+/* floating dock */
+.dock {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 10;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  width: min(calc(100% - 32px), 440px);
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 999px; padding: 5px;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.dock .thumb {
+  position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 10px) / 4);
+  background: var(--accent); border-radius: 999px; transition: transform .3s cubic-bezier(.3,1.2,.5,1), opacity .2s, background .3s;
+  pointer-events: none;
+}
+.dock button {
+  position: relative; z-index: 1; border: 0; background: transparent; min-height: 46px; border-radius: 999px;
+  font-weight: 700; font-size: 14.5px; color: var(--ink-2); transition: color .2s;
+}
+.dock button[aria-current="page"] { color: var(--on-accent); }
+.dock .dot { position: absolute; top: 8px; right: 14%; width: 10px; height: 10px; border-radius: 50%; background: var(--mustard); border: 2px solid var(--surface); }
+@media (prefers-reduced-motion: reduce) { .dock .thumb { transition: none; } }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 14.5px; font-weight: 600; max-width: calc(100% - 32px); text-align: center;
+}
+
+a.linkbtn { display: inline-block; }
+.story a.linkbtn { align-self: flex-start; }
+.home-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; }
+.linkbtn.story-link { font-size: 18px; font-weight: 700; color: var(--ink); padding: 12px 0; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.story { display: flex; flex-direction: column; gap: 16px; max-width: 60ch; }
+.story p { font-size: 17px; line-height: 1.6; }
+.story .story-lead { font-family: var(--font-display); font-size: 24px; line-height: 1.25; color: var(--accent); }
+.story .story-quote { font-family: var(--font-display); font-size: 28px; line-height: 1.2; text-wrap: balance; padding-block: 8px; }
+.story .story-sign { font-weight: 700; }
+
+.agree { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.4; }
+.agree input { width: 22px; height: 22px; flex: none; margin: 1px 0 0; accent-color: var(--accent); }
+.terms { display: flex; flex-direction: column; gap: 10px; }
+.term { border: 1.5px solid var(--line); border-radius: 16px; background: var(--surface); padding: 0 16px; }
+.term summary { list-style: none; cursor: pointer; padding: 12px 0; font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 48px; }
+.term summary::-webkit-details-marker { display: none; }
+.term summary::after { content: "+"; font-size: 22px; font-weight: 500; color: var(--ink-2); }
+.term[open] summary::after { content: "\2212"; }
+.term-body { padding-bottom: 14px; display: flex; flex-direction: column; gap: 8px; color: var(--ink-2); font-size: 15.5px; line-height: 1.55; }
+.term-body ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+.sports.two { grid-template-columns: 1fr 1fr; }
+.live-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: 1px; }
+.dock .dot.live { right: 18%; }
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot, .dock .dot.live { animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mustard) 70%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+}
+
+/* logo splash */
+.splash {
+  position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-items: center; padding: 24px;
+  transition: opacity .45s ease; cursor: pointer;
+}
+.splash.out { opacity: 0; pointer-events: none; }
+.splash svg { width: min(100%, 460px); height: auto; overflow: visible; }
+.lg-word { opacity: 0; animation: lgword .6s ease-out 1.05s forwards; }
+.lg-tag { opacity: 0; animation: lgfade .5s ease-out 1.4s forwards; }
+.lg-motion { opacity: 0; animation: lgmo .45s ease-out 1.05s forwards; }
+@keyframes lgword { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes lgfade { to { opacity: 1; } }
+@keyframes lgmo { 0% { opacity: 0; transform: translateX(-10px); } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .lg-word, .lg-tag, .lg-motion { opacity: 1; animation: none; }
+  .splash { transition: none; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><span id="brand-ball" aria-hidden="true"></span><b><span class="b1">Catch</span><span class="b2">App</span></b></div>
+    <div class="top-right">
+      <button class="city-btn" id="city-btn" data-action="goto" data-value="me" aria-label="Your city">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.2A7 7 0 0 1 19 9.8C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/></svg>
+        <span id="city-text">Set city</span>
+      </button>
+      <button class="me-btn" id="me-btn" data-action="goto" data-value="me" aria-label="Your profile">Y</button>
+    </div>
+  </header>
+  <main id="main"></main>
+</div>
+
+<nav class="dock" id="dock" aria-label="Main">
+  <span class="thumb" id="thumb"></span>
+  <button data-action="goto" data-value="home">Home</button>
+  <button data-action="goto" data-value="nearby" id="dock-nearby">Nearby</button>
+  <button data-action="goto" data-value="post">Post</button>
+  <button data-action="goto" data-value="catches" id="dock-catches">Catches</button>
+</nav>
+<div id="toast-slot" aria-live="polite"></div>
+
+<div class="splash" id="splash" role="img" aria-label="CatchApp. Catch up.">
+  <svg viewBox="0 0 830 440" aria-hidden="true">
+    <defs>
+      <path id="tagpath" d="M178 150 Q335 66 498 108" fill="none"/>
+      <clipPath id="ballclip"><circle r="55"/></clipPath>
+    </defs>
+    <g class="lg-motion" stroke="var(--logo-red)" stroke-width="7" stroke-linecap="round" fill="none">
+      <path d="M548 124 L588 137"/><path d="M572 104 L622 118"/><path d="M604 86 L654 96"/>
+    </g>
+    <path id="lg-arc" d="M75 245 Q300 60 640 190" fill="none" stroke="var(--logo-red)" stroke-width="9" stroke-linecap="round"/>
+    <text class="lg-tag" font-family="Figtree, system-ui, sans-serif" font-weight="700" font-size="36" letter-spacing="15" fill="var(--logo-red)">
+      <textPath href="#tagpath">CATCH UP</textPath>
+    </text>
+    <text class="lg-word" x="42" y="392" font-family="Figtree, system-ui, sans-serif" font-weight="800" font-size="150" textLength="626" lengthAdjust="spacingAndGlyphs"><tspan fill="var(--logo-navy)">Catch</tspan><tspan fill="var(--logo-red)">App</tspan></text>
+    <g id="lg-ball" transform="translate(75 245) scale(.3)">
+      <circle r="58" fill="var(--surface)" stroke="var(--logo-navy)" stroke-width="8"/>
+      <g clip-path="url(#ballclip)" fill="none" stroke="var(--logo-red)">
+        <path d="M-52 -34 C-28 -14 -26 14 -42 46" stroke-width="4"/><path d="M-52 -34 C-28 -14 -26 14 -42 46" stroke-width="14" stroke-dasharray="3.5 11"/>
+        <path d="M32 -46 C12 -22 12 16 36 52" stroke-width="4"/><path d="M32 -46 C12 -22 12 16 36 52" stroke-width="14" stroke-dasharray="3.5 11"/>
+      </g>
+    </g>
+  </svg>
+</div>
+
+<datalist id="cities">
+  <option value="Atlanta, GA"></option><option value="Austin, TX"></option><option value="Baltimore, MD"></option><option value="Boston, MA"></option>
+  <option value="Charlotte, NC"></option><option value="Chicago, IL"></option><option value="Cincinnati, OH"></option><option value="Columbus, OH"></option>
+  <option value="Dallas, TX"></option><option value="Denver, CO"></option><option value="Detroit, MI"></option><option value="Houston, TX"></option>
+  <option value="Indianapolis, IN"></option><option value="Kansas City, MO"></option><option value="Los Angeles, CA"></option><option value="Miami, FL"></option>
+  <option value="Minneapolis, MN"></option><option value="Nashville, TN"></option><option value="New York, NY"></option><option value="Orlando, FL"></option>
+  <option value="Philadelphia, PA"></option><option value="Phoenix, AZ"></option><option value="Pittsburgh, PA"></option><option value="Portland, OR"></option>
+  <option value="San Diego, CA"></option><option value="San Francisco, CA"></option><option value="Seattle, WA"></option><option value="St. Louis, MO"></option>
+  <option value="Tampa, FL"></option><option value="Washington, DC"></option>
+</datalist>
+
+<script>
+(function () {
+  var SPORTS = {
+    baseball:   { label: "Baseball",   h: ["Let’s ", "catch up."],     sub: "A quick game of catch with someone nearby.", find: "Find a catch" },
+    football:   { label: "Football",   h: ["Toss the ", "pigskin."],        sub: "A quick throw-around with someone nearby.",  find: "Find a toss" },
+    basketball: { label: "Basketball", h: ["Shoot some ", "hoops."],        sub: "A quick shootaround with someone nearby.",   find: "Find a shootaround" },
+    soccer:     { label: "Soccer",     h: ["Kick it ", "around."],          sub: "A quick kickabout with someone nearby.",     find: "Find a kickabout" }
+  };
+  var SPORT_ORDER = ["baseball", "football", "basketball", "soccer"];
+  var SPOTS = {
+    baseball: ["Hartwell Park, Field 1", "Hartwell Park, Field 2", "Lincoln Rec Center lawn", "Riverside High field (public)", "Veterans Memorial Field"],
+    football: ["Hartwell Park, open lawn", "Riverside High field (public)", "Veterans Memorial Field", "Lincoln Rec Center lawn"],
+    basketball: ["Hartwell Park courts", "Lincoln Rec Center gym (open play)", "Riverside Park courts", "Veterans Memorial courts"],
+    soccer: ["Hartwell Park, Field 2", "Riverside High field (public)", "Veterans Memorial Field", "Lincoln Rec Center lawn"]
+  };
+  var geo = { status: "idle", sport: "", parks: [] };
+  function liveSpots() { return geo.parks.length && geo.sport === state.sport ? geo.parks.map(function (p) { return p.name; }) : SPOTS[state.sport]; }
+  function parkFor(name) { return geo.parks.filter(function (p) { return p.name === name; })[0]; }
+  function miles(a, b, c, d) {
+    var r = Math.PI / 180, x = Math.sin((c - a) * r / 2), y = Math.sin((d - b) * r / 2);
+    var h = x * x + Math.cos(a * r) * Math.cos(c * r) * y * y;
+    return 3958.8 * 2 * Math.asin(Math.sqrt(h));
+  }
+  var OSM_SPORT = { baseball: "baseball|softball", football: "american_football|football", basketball: "basketball", soccer: "soccer" };
+  function findParks() {
+    if (!navigator.geolocation) { geo.status = "err"; render(); return; }
+    geo.status = "locating"; geo.sport = state.sport; render();
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var la = pos.coords.latitude, lo = pos.coords.longitude, sp = state.sport;
+      geo.status = "loading"; render();
+      var ar = "(around:2500," + la + "," + lo + ")";
+      var q = "[out:json][timeout:15];(nwr" + ar + '["leisure"="park"]["name"];nwr' + ar + '["leisure"~"pitch|sports_centre|stadium"]["sport"~"' + OSM_SPORT[sp] + '"]["name"];);out center 60;';
+      var ctl = window.AbortController ? new AbortController() : null;
+      var t = setTimeout(function () { if (ctl) ctl.abort(); }, 15000);
+      fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: "data=" + encodeURIComponent(q), signal: ctl ? ctl.signal : undefined })
+        .then(function (r) { if (!r.ok) throw new Error("bad"); return r.json(); })
+        .then(function (j) {
+          clearTimeout(t);
+          var seen = {}, out = [];
+          (j.elements || []).forEach(function (e) {
+            var n = e.tags && e.tags.name, c = e.center || e; if (!n || seen[n] || c.lat == null) return;
+            seen[n] = 1; out.push({ name: n, lat: c.lat, lon: c.lon, d: miles(la, lo, c.lat, c.lon) });
+          });
+          out.sort(function (a, b) { return a.d - b.d; });
+          geo.parks = out.slice(0, 8); geo.sport = sp; geo.status = out.length ? "ok" : "none";
+          if (out.length) state.live.spot = out[0].name;
+          render();
+        })
+        .catch(function () { clearTimeout(t); geo.status = "neterr"; render(); });
+    }, function (err) { geo.status = err && err.code === 1 ? "denied" : "err"; render(); }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 });
+  }
+  var GEO_MSG = {
+    locating: "Finding you…", loading: "Looking for parks near you…",
+    denied: "Location is blocked here. This preview page may not be allowed to use it. Pick your park from the list below.",
+    err: "Couldn’t get your location here, so pick your park from the list below.",
+    neterr: "Got your location but couldn’t load nearby parks here, so pick from the list below.",
+    none: "No named parks or fields found within about 1.5 miles. Pick from the list below.",
+    ok: "Showing the closest spots to you."
+  };
+  var DAYS = { today: "Today", tomorrow: "Tomorrow", weekend: "Saturday" };
+  var WORDS = ["", "Rough one", "Not great", "It was fine", "Good one", "Great one"];
+  var GOOD_TAGS = ["Great arm", "Easy to talk to", "On time"];
+  var LOW_TAGS = ["Late", "Different spot than posted", "Hard to talk to"];
+  var ORDER = ["home", "nearby", "post", "catches"];
+  var FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSehO-GVrvvB-L6Lcwsd5wR0EIsA8Dr4CRwffiRfOOhAoWnzMw/viewform";
+  function feedbackLink() { return '<a class="linkbtn story-link" href="' + FORM_URL + '" target="_blank" rel="noopener noreferrer">Give feedback</a>'; }
+
+  var SAMPLE = [
+    { id: "b1", sport: "baseball", name: "Marcus T.", rating: 4.9, day: "today", time: "12:15 PM", dur: 30, spot: SPOTS.baseball[1], dist: 0.4 },
+    { id: "b2", sport: "baseball", name: "Dani R.", rating: 4.8, day: "today", time: "5:30 PM", dur: 45, spot: SPOTS.baseball[2], dist: 0.9 },
+    { id: "b3", sport: "baseball", name: "Coach Al", rating: 5.0, day: "today", time: "6:00 PM", dur: 60, spot: SPOTS.baseball[3], dist: 1.6 },
+    { id: "b4", sport: "baseball", name: "Priya S.", rating: 4.7, day: "tomorrow", time: "7:30 AM", dur: 30, spot: SPOTS.baseball[0], dist: 0.5 },
+    { id: "b5", sport: "baseball", name: "Jordan K.", rating: 4.9, day: "weekend", time: "10:00 AM", dur: 60, spot: SPOTS.baseball[4], dist: 2.0 },
+    { id: "f1", sport: "football", name: "Eli W.", rating: 4.8, day: "today", time: "5:00 PM", dur: 45, spot: SPOTS.football[0], dist: 0.6 },
+    { id: "f2", sport: "football", name: "Tasha M.", rating: 4.9, day: "today", time: "6:15 PM", dur: 30, spot: SPOTS.football[1], dist: 1.3 },
+    { id: "f3", sport: "football", name: "Big Mike", rating: 4.7, day: "tomorrow", time: "8:00 AM", dur: 60, spot: SPOTS.football[2], dist: 1.8 },
+    { id: "f4", sport: "football", name: "Sam P.", rating: 4.9, day: "weekend", time: "11:00 AM", dur: 45, spot: SPOTS.football[3], dist: 0.9 },
+    { id: "h1", sport: "basketball", name: "Andre J.", rating: 4.9, day: "today", time: "12:30 PM", dur: 30, spot: SPOTS.basketball[0], dist: 0.5 },
+    { id: "h2", sport: "basketball", name: "Lena C.", rating: 4.8, day: "today", time: "7:00 PM", dur: 45, spot: SPOTS.basketball[1], dist: 1.0 },
+    { id: "h3", sport: "basketball", name: "Ruben O.", rating: 4.7, day: "tomorrow", time: "6:30 AM", dur: 30, spot: SPOTS.basketball[2], dist: 1.5 },
+    { id: "h4", sport: "basketball", name: "Kayla D.", rating: 5.0, day: "weekend", time: "9:00 AM", dur: 60, spot: SPOTS.basketball[3], dist: 2.0 },
+    { id: "c1", sport: "soccer", name: "Sofia L.", rating: 4.9, day: "today", time: "5:45 PM", dur: 45, spot: SPOTS.soccer[0], dist: 0.7 },
+    { id: "c2", sport: "soccer", name: "Kwame A.", rating: 4.8, day: "today", time: "7:15 PM", dur: 60, spot: SPOTS.soccer[1], dist: 1.4 },
+    { id: "c3", sport: "soccer", name: "Nico R.", rating: 4.7, day: "tomorrow", time: "7:00 AM", dur: 30, spot: SPOTS.soccer[2], dist: 1.9 },
+    { id: "c4", sport: "soccer", name: "Hana T.", rating: 4.9, day: "weekend", time: "10:30 AM", dur: 45, spot: SPOTS.soccer[3], dist: 1.1 }
+  ];
+
+  /* people who are at a park right now (samples); walk = minutes from you, dur = minutes they have left */
+  var LIVE = [
+    { id: "n1", sport: "baseball", name: "Marcus T.", rating: 4.9, day: "now", time: "", dur: 25, walk: 4, spot: SPOTS.baseball[1] },
+    { id: "n2", sport: "baseball", name: "Dani R.", rating: 4.8, day: "now", time: "", dur: 40, walk: 9, spot: SPOTS.baseball[2] },
+    { id: "n3", sport: "football", name: "Eli W.", rating: 4.8, day: "now", time: "", dur: 30, walk: 5, spot: SPOTS.football[0] },
+    { id: "n4", sport: "football", name: "Tasha M.", rating: 4.9, day: "now", time: "", dur: 20, walk: 11, spot: SPOTS.football[1] },
+    { id: "n5", sport: "basketball", name: "Andre J.", rating: 4.9, day: "now", time: "", dur: 35, walk: 3, spot: SPOTS.basketball[0] },
+    { id: "n6", sport: "basketball", name: "Lena C.", rating: 4.8, day: "now", time: "", dur: 45, walk: 8, spot: SPOTS.basketball[1] },
+    { id: "n7", sport: "soccer", name: "Sofia L.", rating: 4.9, day: "now", time: "", dur: 25, walk: 6, spot: SPOTS.soccer[0] },
+    { id: "n8", sport: "soccer", name: "Kwame A.", rating: 4.8, day: "now", time: "", dur: 50, walk: 12, spot: SPOTS.soccer[2] }
+  ];
+
+  var STORE_KEY = "catchapp-v4";
+  var state = {
+    tab: "home", sport: "baseball", requests: [], mine: [], blocked: [], received: [],
+    nearbyMode: "later", live: { on: false, spot: "", until: 0, dur: 30 }, ping: null,
+    draft: { dur: 30, day: "today", time: "17:30", spot: SPOTS.baseball[0] },
+    profile: { name: "", city: "", bio: "", done: false, agreed: false }, rating: null, reportOpen: null
+  };
+
+  function load() {
+    try {
+      var d = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (!d) return;
+      ["requests", "mine", "blocked", "received"].forEach(function (k) { if (Array.isArray(d[k])) state[k] = d[k]; });
+      if (d.profile) state.profile = Object.assign(state.profile, d.profile);
+      if (d.sport && SPORTS[d.sport]) state.sport = d.sport;
+    } catch (e) {}
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ requests: state.requests, mine: state.mine, blocked: state.blocked, received: state.received, profile: state.profile, sport: state.sport })); } catch (e) {}
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function initials(n) { var p = String(n).trim().split(/\s+/); return p[0] ? ((p[0][0] + (p[1] ? p[1][0] : "")).toUpperCase()) : "Y"; }
+  function first(n) { return String(n).split(" ")[0]; }
+  function fmtTime(t) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(t || ""); if (!m) return t || "";
+    var h = parseInt(m[1], 10), ap = h >= 12 ? "PM" : "AM"; h = h % 12; if (h === 0) h = 12;
+    return h + ":" + m[2] + " " + ap;
+  }
+  function myName() { return state.profile.name.trim() || "You"; }
+
+  /* sport ball icon, used for ratings and the logo */
+  function ball(size, on) {
+    var s = state.sport, o = on ? 1 : .35, svg = '<svg class="ball" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="opacity:' + o + '">';
+    if (s === "football") {
+      svg += '<g transform="rotate(-35 12 12)"><ellipse cx="12" cy="12" rx="10.5" ry="6.4" fill="' + (on ? "#8A4B2A" : "none") + '" stroke="var(--ink)" stroke-width="1.6"/>' +
+        '<path d="M8 12h8M10 10v4M12 10v4M14 10v4" stroke="' + (on ? "#fff" : "var(--ink)") + '" stroke-width="1.2" stroke-linecap="round"/></g>';
+    } else if (s === "basketball") {
+      svg += '<circle cx="12" cy="12" r="10" fill="' + (on ? "#E0702B" : "none") + '" stroke="var(--ink)" stroke-width="1.6"/>' +
+        '<path d="M2 12h20M12 2v20M5 5c4 4 4 10 0 14M19 5c-4 4-4 10 0 14" stroke="var(--ink)" stroke-width="1.2"/>';
+    } else if (s === "soccer") {
+      svg += '<circle cx="12" cy="12" r="10" fill="' + (on ? "#fff" : "none") + '" stroke="var(--ink)" stroke-width="1.6"/>' +
+        '<polygon points="12,8 15.5,10.5 14.2,14.6 9.8,14.6 8.5,10.5" fill="var(--ink)"/>' +
+        '<path d="M12 8V2.6M15.5 10.5l5.2-1.8M14.2 14.6l3.2 4.6M9.8 14.6l-3.2 4.6M8.5 10.5L3.3 8.7" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>';
+    } else {
+      svg += '<circle cx="12" cy="12" r="10" fill="' + (on ? "#fff" : "none") + '" stroke="var(--ink)" stroke-width="1.6"/>' +
+        '<path d="M6.2 4.8c3.2 3.2 3.2 11.2 0 14.4M17.8 4.8c-3.2 3.2-3.2 11.2 0 14.4" stroke="var(--ketchup)" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1.6 2.2"/>';
+    }
+    return svg + '</svg>';
+  }
+  function balls(n) { var s = '<span class="balls-row">'; for (var i = 1; i <= 5; i++) s += ball(18, i <= n); return s + '</span>'; }
+  function byId(id) { var all = state.mine.concat(SAMPLE, LIVE); for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i]; return null; }
+  function reqFor(id) { for (var i = 0; i < state.requests.length; i++) if (state.requests[i].catchId === id) return state.requests[i]; return null; }
+  function whenLabel(c) { return c.day === "now" ? "Right now" : DAYS[c.day] + " " + c.time; }
+  function avgReceived() { if (!state.received.length) return null; var t = 0; state.received.forEach(function (x) { t += x.stars; }); return t / state.received.length; }
+
+  /* ---------- scenes ---------- */
+  function kid(id, parts) {
+    return '<g id="' + id + '">' +
+      parts.legs +
+      '<rect x="58" y="100" width="24" height="46" rx="11" fill="var(--shirt)"/>' + parts.arms +
+      '<circle cx="70" cy="86" r="12" fill="#EDBE9C"/>' +
+      '<path d="M58 84 a12 12 0 0 1 24 0 z" fill="var(--shirt)"/><rect x="76" y="81" width="14" height="4" rx="2" fill="var(--shirt)"/></g>';
+  }
+  var LEGS = '<path d="M62 176 L65 142 M80 176 L77 142" stroke="var(--ink)" stroke-width="7" stroke-linecap="round" fill="none"/>';
+  var LEGS_KICK = '<path d="M62 176 L65 142 M77 142 L98 168" stroke="var(--ink)" stroke-width="7" stroke-linecap="round" fill="none"/>';
+  var ARM_OUT = '<path d="M76 114 L100 106" stroke="var(--shirt)" stroke-width="9" stroke-linecap="round"/>';
+  var ARM_UP = '<path d="M76 108 L96 78" stroke="var(--shirt)" stroke-width="9" stroke-linecap="round"/><circle cx="98" cy="74" r="5.5" fill="#EDBE9C"/>';
+  var ARM_DOWN = '<path d="M64 112 L60 138 M78 112 L82 136" stroke="var(--shirt)" stroke-width="8" stroke-linecap="round"/><circle cx="60" cy="140" r="4.5" fill="#EDBE9C"/><circle cx="82" cy="138" r="4.5" fill="#EDBE9C"/>';
+  /* baseball glove: tan wrist strap, leather mitt with four finger lobes, thumb, darker pocket and lacing */
+  var GLOVE =
+    '<g transform="translate(105 104) scale(.68)">' +
+    '<rect x="-17" y="-4" width="9" height="12" rx="3" fill="#E9C48C" stroke="var(--ink)" stroke-width="1.4"/>' +
+    '<path d="M-9 -8 C-11 -16 -6 -22 -1 -18 C0 -25 8 -25 9 -18 C13 -23 20 -19 18 -12 C23 -12 25 -4 21 0 C23 6 19 12 14 13 C11 19 3 21 -2 17 C-9 15 -10 4 -9 -8 Z" fill="#B66A33" stroke="var(--ink)" stroke-width="1.8" stroke-linejoin="round"/>' +
+    '<path d="M-2 -18 L-1 -6 M9 -18 L8 -5 M18 -12 L13 -3" stroke="#7A3F1B" stroke-width="1.4" stroke-linecap="round" fill="none"/>' +
+    '<ellipse cx="7" cy="5" rx="6.5" ry="8" fill="#8E4B22" stroke="#6E3818" stroke-width="1.2"/>' +
+    '<path d="M-3 12 L2 15 M3 14 L9 16" stroke="#F2DDB6" stroke-width="1.4" stroke-linecap="round"/>' +
+    '</g>';
+  var HAND = '<circle cx="102" cy="105" r="5.5" fill="#EDBE9C"/>';
+  var SHADOW = '<ellipse cx="104" cy="196" rx="9" ry="2.6" fill="var(--ink)" opacity=".16"/>';
+
+  function sceneSvg(sport) {
+    var open = '<svg viewBox="0 0 360 230" role="img" aria-label="Animation of ';
+    var ground = '<rect x="0" y="172" width="360" height="58" fill="var(--ground)"/>';
+    var mirror = function (id, shirt) { return '<g transform="translate(360 0) scale(-1 1)"><use href="#' + id + '" style="--shirt: ' + shirt + '"/></g>'; };
+    if (sport === "football") {
+      return open + 'two kids throwing a football back and forth">' + '<defs>' + kid("k", { legs: LEGS, arms: ARM_OUT + HAND }) + '</defs>' + ground +
+        '<path d="M60 182h240M60 190h240" stroke="#fff" stroke-opacity=".6" stroke-width="2"/>' +
+        '<use href="#k" style="--shirt: var(--accent)"/>' + mirror("k", "var(--blue)") +
+        '<g class="bx">' + SHADOW + '<g class="by"><g transform="translate(104 98)"><g class="tilt"><ellipse rx="10" ry="6.2" fill="#8A4B2A" stroke="var(--ink)" stroke-width="1.6"/>' +
+        '<path d="M-4 0H4M-2.5 -2.2V2.2M0 -2.2V2.2M2.5 -2.2V2.2" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/></g></g></g></g></svg>';
+    }
+    if (sport === "basketball") {
+      return open + 'one kid shooting a basketball while a teammate catches it and passes it back">' +
+        '<defs>' + kid("ks", { legs: LEGS, arms: ARM_UP }) + kid("kt", { legs: LEGS, arms: ARM_OUT + HAND }) + '</defs>' + ground +
+        '<path d="M110 172c34-56 104-56 138 0" stroke="#fff" stroke-opacity=".6" stroke-width="2" fill="none"/>' +
+        '<rect x="280" y="46" width="6" height="40" rx="2" fill="var(--ink)"/><path d="M283 86V176" stroke="var(--ink)" stroke-width="5"/>' +
+        '<use href="#ks" style="--shirt: var(--blue)"/>' +
+        '<g class="swap-a"><g transform="translate(152 0)"><use href="#kt" style="--shirt: var(--accent)"/></g></g>' +
+        '<g class="swap-b"><g transform="translate(292 0) scale(-1 1)"><use href="#kt" style="--shirt: var(--accent)"/></g></g>' +
+        '<path d="M250 76H280" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>' +
+        '<g class="shoot"><g transform="translate(100 64)"><circle r="8.5" fill="#E0702B" stroke="var(--ink)" stroke-width="1.6"/>' +
+        '<path d="M-8.5 0H8.5M0 -8.5V8.5M-6 -6c4 4 4 8 0 12M6 -6c-4 4-4 8 0 12" stroke="var(--ink)" stroke-width="1.1" fill="none"/></g></g>' +
+        '<path d="M252 79L258 100M258 79L261 100M264 79L265 100M270 79L269 100M276 79L272 100M256 90H272" stroke="var(--ink)" stroke-opacity=".6" stroke-width="1.3" fill="none"/></svg>';
+    }
+    if (sport === "soccer") {
+      return open + 'two kids passing a soccer ball">' + '<defs>' + kid("k", { legs: LEGS_KICK, arms: ARM_DOWN }) + '</defs>' + ground +
+        '<path d="M0 205H360" stroke="#fff" stroke-opacity=".6" stroke-width="2"/>' +
+        '<use href="#k" style="--shirt: var(--accent)"/>' + mirror("k", "var(--blue)") +
+        '<g class="bx"><ellipse cx="104" cy="177" rx="9" ry="2.4" fill="var(--ink)" opacity=".16"/><g class="hop"><g transform="translate(104 165)"><g class="roll">' +
+        '<circle r="8" fill="#fff" stroke="var(--ink)" stroke-width="1.6"/><polygon points="0,-3.6 3.4,-1.1 2.1,2.9 -2.1,2.9 -3.4,-1.1" fill="var(--ink)"/>' +
+        '<path d="M0 -3.6V-8M3.4 -1.1L7.6 -2.5M2.1 2.9L4.8 6.4M-2.1 2.9L-4.8 6.4M-3.4 -1.1L-7.6 -2.5" stroke="var(--ink)" stroke-width="1" stroke-linecap="round"/></g></g></g></g></svg>';
+    }
+    return open + 'two kids playing catch with a baseball">' + '<defs>' + kid("k", { legs: LEGS, arms: ARM_OUT + GLOVE }) + '</defs>' + ground +
+      '<use href="#k" style="--shirt: var(--accent)"/>' + mirror("k", "var(--blue)") +
+      '<g class="bx">' + SHADOW + '<g class="by"><g transform="translate(112 94)"><circle r="7.5" fill="#fff" stroke="var(--ink)" stroke-width="1.6"/>' +
+      '<path d="M-3.4 -5.2c2 3.2 2 7.2 0 10.4M3.4 -5.2c-2 3.2-2 7.2 0 10.4" stroke="var(--ketchup)" stroke-width="1.4" stroke-linecap="round" fill="none"/></g></g></g></svg>';
+  }
+
+  /* ---------- views ---------- */
+  function sportPicker() {
+    return '<div class="sports" role="group" aria-label="Sport">' + SPORT_ORDER.map(function (k) {
+      return '<button data-action="sport" data-value="' + k + '" aria-pressed="' + (state.sport === k) + '">' + SPORTS[k].label + '</button>';
+    }).join("") + '</div>';
+  }
+
+  function homeView() {
+    var sp = SPORTS[state.sport];
+    return sportPicker() + '<div class="scene">' + sceneSvg(state.sport) + '</div>' +
+      '<div class="home-copy"><h1>' + sp.h[0] + '<span>' + sp.h[1] + '</span></h1><p>' + sp.sub + '</p></div>' +
+      '<div class="home-actions"><button class="btn" data-action="goto" data-value="nearby">' + sp.find + '</button>' +
+      '<button class="btn ghost" data-action="go-now">I’m here now</button>' +
+      '<button class="btn ghost" data-action="goto" data-value="post">Post your own</button><div class="home-links">' +
+      '<button class="linkbtn story-link" data-action="goto" data-value="story">Our story</button>' + feedbackLink() + '</div></div>';
+  }
+
+  function nearbyView() {
+    var list = SAMPLE.filter(function (c) { return c.sport === state.sport && state.blocked.indexOf(c.id) === -1; });
+    var city = state.profile.city.trim();
+    var h = sportPicker() + '<div><h2 class="title">Nearby</h2><p class="lead">' + (city ? esc(city) : '<button class="linkbtn" data-action="goto" data-value="me">Set your city</button>') + '</p></div>' + modeSwitch();
+    if (state.nearbyMode === "now") return h + liveView();
+    if (!list.length) return h + '<div class="empty"><p>Nobody is out right now.</p><button class="btn small" data-action="goto" data-value="post">Post one</button></div>';
+    h += '<div class="list">' + list.map(function (c) {
+      var r = reqFor(c.id), btn;
+      if (!r) btn = '<button class="btn" data-action="ask" data-id="' + c.id + '">Ask to catch up</button>';
+      else if (r.status === "pending") btn = '<button class="btn" disabled>Request sent</button>';
+      else if (r.status === "confirmed") btn = '<button class="btn" disabled>Confirmed</button>';
+      else btn = '<button class="btn" disabled>You caught up</button>';
+      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3><span class="rating">' + ball(16, true) + c.rating.toFixed(1) + '</span></div>' +
+        '<div><p class="when">' + esc(whenLabel(c)) + ' · ' + c.dur + ' min</p><p class="where">' + esc(c.spot) + ' · ' + c.dist.toFixed(1) + ' mi</p></div>' + btn + '</article>';
+    }).join("") + '</div><p class="fine">Sample listings. Nobody here is a real person yet.</p>';
+    return h;
+  }
+
+  function modeSwitch() {
+    return '<div class="sports two" role="group" aria-label="When">' +
+      '<button data-action="mode" data-value="later" aria-pressed="' + (state.nearbyMode !== "now") + '">Plan ahead</button>' +
+      '<button data-action="mode" data-value="now" aria-pressed="' + (state.nearbyMode === "now") + '">Right now</button></div>';
+  }
+
+  function liveView() {
+    var spots = liveSpots(), L = state.live, h = "";
+    var spot = spots.indexOf(L.spot) > -1 ? L.spot : spots[0];
+    var pc = state.ping && byId(state.ping.id);
+    if (pc) {
+      h += '<article class="card"><div class="row"><h3 class="name">' + esc(pc.name) + ' pinged you</h3><span class="rating">' + ball(16, true) + pc.rating.toFixed(1) + '</span></div>' +
+        '<p class="where">Wants to play. About ' + pc.walk + ' min away at ' + esc(pc.spot) + '.</p>' +
+        '<div class="actions"><button class="btn small" data-action="accept-ping">Accept</button><button class="btn ghost small" data-action="decline-ping">Not now</button></div></article>';
+    }
+    if (L.on) {
+      var mins = Math.max(1, Math.ceil((L.until - Date.now()) / 60000));
+      h += '<article class="card"><div class="row"><div><p class="when"><span class="live-dot" aria-hidden="true"></span>You are live</p><p class="where">' + esc(L.spot) + ' · ' + mins + ' min left</p></div><span class="badge good">Live</span></div>' +
+        '<p class="fine">Only people at this park can ping you. Your exact location is never shown.</p>' +
+        '<button class="btn ghost small" data-action="stop-live">Stop being available</button></article>';
+    } else {
+      h += '<article class="card"><h3 class="name">At the park right now?</h3>' +
+        '<p class="where">Mark yourself available and anyone nearby can ping you. Accept the one you like and meet up.</p>' +
+        '<button class="btn ghost small" data-action="find-parks"' + (geo.status === "locating" || geo.status === "loading" ? " disabled" : "") + '>Use my location</button>' +
+        (geo.status !== "idle" ? '<p class="fine" role="status">' + GEO_MSG[geo.status] + '</p>' : '') +
+        '<div class="field"><label for="f-lspot">Where are you</label><select class="input" id="f-lspot" data-field="lspot">' +
+        spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (spot === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select></div>' +
+        (parkFor(spot) ? '<a class="linkbtn" href="https://www.google.com/maps/search/?api=1&query=' + parkFor(spot).lat + ',' + parkFor(spot).lon + '" target="_blank" rel="noopener noreferrer">Open this park in Maps</a>' : '') +
+        '<div class="field"><span class="lab">Stay available for</span>' + chipRow([["30", "30 min"], ["60", "60 min"]], String(L.dur), "ldur") + '</div>' +
+        '<button class="btn" data-action="go-live">I’m here, ping me</button></article>';
+    }
+    var list = LIVE.filter(function (c) { return c.sport === state.sport && state.blocked.indexOf(c.id) === -1; });
+    h += '<h3 class="sub">Here right now</h3>';
+    if (!list.length) h += '<p class="fine">Nobody is live right now.</p>';
+    else h += '<div class="list">' + list.map(function (c) {
+      var r = reqFor(c.id), btn;
+      if (!r) btn = '<button class="btn" data-action="ask" data-id="' + c.id + '">Ping ' + esc(first(c.name)) + '</button>';
+      else if (r.status === "pending") btn = '<button class="btn" disabled>Pinged</button>';
+      else if (r.status === "confirmed") btn = '<button class="btn" disabled>On the way</button>';
+      else btn = '<button class="btn" disabled>You caught up</button>';
+      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3><span class="rating">' + ball(16, true) + c.rating.toFixed(1) + '</span></div>' +
+        '<div><p class="when"><span class="live-dot" aria-hidden="true"></span>' + c.walk + ' min walk · ' + c.dur + ' min left</p><p class="where">' + esc(c.spot) + '</p></div>' + btn + '</article>';
+    }).join("") + '</div>';
+    return h + '<p class="fine">Other people shown here are samples. Your location is only used to find nearby parks and is never saved or shown.</p>';
+  }
+
+  function scheduleIncomingPing() {
+    setTimeout(function () {
+      if (!state.live.on || state.ping) return;
+      var cand = LIVE.filter(function (c) { return c.sport === state.sport && state.blocked.indexOf(c.id) === -1 && !reqFor(c.id); })[0];
+      if (!cand) return;
+      state.ping = { id: cand.id };
+      toast(first(cand.name) + " pinged you");
+      render();
+    }, 6000);
+  }
+
+  function chipRow(items, current, action) {
+    return '<div class="chips">' + items.map(function (it) {
+      return '<button class="chip" data-action="' + action + '" data-value="' + it[0] + '" aria-pressed="' + (current === it[0]) + '">' + it[1] + '</button>';
+    }).join("") + '</div>';
+  }
+
+  function postView() {
+    var d = state.draft, spots = SPOTS[state.sport];
+    return '<h2 class="title">Post a ' + (state.sport === "baseball" ? "catch" : state.sport === "football" ? "toss" : state.sport === "basketball" ? "shootaround" : "kickabout") + '</h2>' + sportPicker() + '<div class="form">' +
+      '<div class="row2"><div class="field"><label for="f-day">Day</label><select class="input" id="f-day" data-field="day">' +
+      Object.keys(DAYS).map(function (k) { return '<option value="' + k + '"' + (d.day === k ? " selected" : "") + '>' + DAYS[k] + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field"><label for="f-time">Start</label><input class="input" id="f-time" type="time" value="' + esc(d.time) + '" data-field="time"></div></div>' +
+      '<div class="field"><label for="f-spot">Where</label><select class="input" id="f-spot" data-field="spot">' +
+      spots.map(function (p) { return '<option' + (d.spot === p ? " selected" : "") + '>' + esc(p) + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field"><span class="lab">How long</span>' + chipRow([["15", "15 min"], ["30", "30 min"], ["45", "45 min"], ["60", "60 min"]], String(d.dur), "dur") + '</div>' +
+      '<button class="btn" data-action="post">Post it</button></div>' +
+      '<p class="fine">Public parks, fields and courts only. Your address is never shown.</p>';
+  }
+
+  function ratingHtml(c) {
+    var rt = state.rating, n = rt.stars, name = first(c.name);
+    var h = '<div class="rate"><h4>How was it with ' + esc(name) + '?</h4><div class="balls" role="radiogroup" aria-label="Rating">';
+    for (var i = 1; i <= 5; i++) h += '<button data-action="star" data-value="' + i + '" role="radio" aria-checked="' + (i === n) + '" aria-label="' + i + (i === 1 ? ' ball' : ' balls') + '">' + ball(40, i <= n) + '</button>';
+    h += '</div><p class="rate-word" aria-live="polite">' + (n ? WORDS[n] : "Tap to rate") + '</p>';
+    if (n) {
+      var tags = n >= 4 ? GOOD_TAGS : LOW_TAGS;
+      h += '<div class="chips">' + tags.map(function (t) {
+        return '<button class="chip" data-action="rtag" data-value="' + esc(t) + '" aria-pressed="' + (rt.tags.indexOf(t) > -1) + '">' + esc(t) + '</button>';
+      }).join("") + '</div>';
+      h += '<div class="field"><span class="lab">Did you feel safe?</span><div class="chips">' +
+        '<button class="chip" data-action="safe" data-value="yes" aria-pressed="' + rt.safe + '">Yes</button>' +
+        '<button class="chip" data-action="safe" data-value="no" aria-pressed="' + (!rt.safe) + '">Not really</button></div></div>';
+      if (!rt.safe || n <= 2) h += '<div class="chips"><button class="chip" data-action="rblock" aria-pressed="' + rt.block + '">Block ' + esc(name) + '</button></div>';
+      if (!rt.safe) h += '<p class="fine">We review every safety report. If you are in danger right now, call 911.</p>';
+    }
+    return h + '<div class="actions"><button class="btn small" data-action="rate-submit"' + (n ? "" : " disabled") + '>Send rating</button><button class="linkbtn" data-action="rate-cancel">Not now</button></div></div>';
+  }
+
+  function requestCard(r) {
+    var c = byId(r.catchId); if (!c) return "";
+    var conf = r.status === "confirmed", done = r.status === "done";
+    var h = '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3><span class="badge ' + (done ? "" : conf ? "good" : "wait") + '">' + (done ? "Played" : conf ? "Confirmed" : "Waiting") + '</span></div>' +
+      '<div><p class="when">' + esc(whenLabel(c)) + ' · ' + c.dur + ' min</p><p class="where">' + SPORTS[c.sport].label + ' · ' + esc(c.spot) + '</p></div>';
+    if (done) {
+      h += '<div class="row"><span class="fine">You gave</span>' + balls(r.stars) + '</div>';
+      h += r.theirStars ? '<div class="row"><span class="fine">' + esc(first(c.name)) + ' gave you</span>' + balls(r.theirStars) + '</div>'
+        : '<p class="fine">Waiting on ' + esc(first(c.name)) + '’s rating</p>';
+    } else if (conf) {
+      if (state.rating && state.rating.id === c.id) return h + ratingHtml(c) + '</article>';
+      if (c.day === "now") h += '<p class="fine">Head to ' + esc(c.spot) + '. About ' + c.walk + ' min away.</p>';
+      h += '<button class="btn" data-action="rate-open" data-id="' + c.id + '">We met up. Rate it</button>' +
+        '<div class="actions"><button class="linkbtn" data-action="nomeet" data-id="' + c.id + '">We didn’t meet</button><button class="linkbtn" data-action="report-open" data-id="' + c.id + '">Block or report</button></div>';
+      if (state.reportOpen === c.id) h += '<div class="actions"><button class="btn ghost small" data-action="block" data-id="' + c.id + '">Block ' + esc(first(c.name)) + '</button><button class="btn ghost small" data-action="report" data-id="' + c.id + '">Report</button><button class="linkbtn" data-action="report-close">Never mind</button></div>';
+    } else {
+      h += '<button class="btn ghost small" data-action="cancel" data-id="' + c.id + '">Cancel request</button>';
+    }
+    return h + '</article>';
+  }
+
+  function catchesView() {
+    var h = '<h2 class="title">Catches</h2>';
+    var active = state.requests.filter(function (r) { return r.status !== "done"; });
+    var done = state.requests.filter(function (r) { return r.status === "done"; });
+    if (!state.requests.length && !state.mine.length) {
+      return h + '<div class="empty"><p>Nothing yet.</p><button class="btn small" data-action="goto" data-value="nearby">Find someone nearby</button></div>';
+    }
+    if (active.length) h += '<h3 class="sub">Coming up</h3><div class="list">' + active.map(requestCard).join("") + '</div>';
+    if (state.mine.length) h += '<h3 class="sub">Your posts</h3><div class="list">' + state.mine.map(function (c) {
+      return '<article class="card"><div class="row"><div><p class="when">' + esc(whenLabel(c)) + ' · ' + c.dur + ' min</p><p class="where">' + SPORTS[c.sport].label + ' · ' + esc(c.spot) + '</p></div><span class="badge wait">Open</span></div>' +
+        '<div class="actions"><button class="linkbtn" data-action="remove-post" data-id="' + c.id + '">Remove post</button></div></article>';
+    }).join("") + '</div>';
+    if (done.length) h += '<h3 class="sub">Played</h3><div class="list">' + done.map(requestCard).join("") + '</div>';
+    return h;
+  }
+
+  function profileView() {
+    var p = state.profile, avg = avgReceived(), setup = !p.done;
+    var played = state.requests.filter(function (r) { return r.status === "done"; }).length;
+    var h = '<div class="row" style="justify-content:flex-start"><div class="avatar-lg" id="avatar-lg" aria-hidden="true">' + esc(initials(p.name)) + '</div>' +
+      '<div><h2 class="title">' + (setup ? "Welcome" : "You") + '</h2>' + (setup ? '<p class="lead">Tell people who they are meeting.</p>' : '') + '</div></div>';
+    if (!setup) h += '<div class="stats"><div class="stat"><b>' + played + '</b><span>Played</span></div>' +
+      '<div class="stat"><b>' + (avg ? ball(24, true) + avg.toFixed(1) : "New") + '</b><span>' + (avg ? "Your rating" : "Rated after your first one") + '</span></div></div>';
+    h += '<div class="form">' +
+      '<div class="field"><label for="pf-name">Your name</label><input class="input" id="pf-name" data-pfield="name" maxlength="24" autocomplete="given-name" placeholder="First name and last initial" value="' + esc(p.name) + '"></div>' +
+      '<div class="field"><label for="pf-city">Your city</label><input class="input" id="pf-city" data-pfield="city" list="cities" maxlength="40" autocomplete="off" placeholder="Start typing a city" value="' + esc(p.city) + '"></div>' +
+      '<div class="field"><label for="pf-bio">About you (optional)</label><input class="input" id="pf-bio" data-pfield="bio" maxlength="80" placeholder="Left-handed, slow arm, good at small talk" value="' + esc(p.bio) + '"></div>' +
+      (setup ? '<label class="agree"><input type="checkbox" id="pf-agree"' + (p.agreed ? ' checked' : '') + '><span>I am 18 or older and agree to the Terms and safety rules.</span></label>' +
+        '<button class="linkbtn" data-action="goto" data-value="terms">Read the Terms and safety rules</button>' +
+        '<button class="btn" data-action="save-profile"' + (p.agreed ? '' : ' disabled') + '>Save and start</button>' : '') + '</div>';
+    if (state.received.length) {
+      h += '<h3 class="sub">Recent ratings</h3><div class="list">' + state.received.slice(0, 5).map(function (x) {
+        return '<div class="card"><div class="row"><h3 class="name">' + esc(x.from) + '</h3>' + balls(x.stars) + '</div></div>';
+      }).join("") + '</div>';
+    }
+    return h + '<p class="fine">Everyone rates every meetup. You can block or report anyone from a confirmed one.</p>' +
+      '<div class="home-links"><button class="linkbtn story-link" data-action="goto" data-value="story">Our story</button>' +
+      '<button class="linkbtn story-link" data-action="goto" data-value="terms">Terms and safety</button>' + feedbackLink() + '</div>';
+  }
+
+  var TERMS = [
+    ["What CatchApp is", ["CatchApp helps people find someone nearby to play catch, toss a football, shoot hoops or kick a soccer ball. We connect people. We do not organize, supervise or attend any meetup, and we are not a party to anything you arrange with another person."]],
+    ["Who can use it", ["You must be 18 or older to use CatchApp."]],
+    ["Your profile", ["Use your real first name and a city you actually play in. Do not pretend to be someone else. You are responsible for what happens on your profile."]],
+    ["Meeting safely", ["Meetups happen between you and another person, so please look out for yourself.",
+      ["Meet in a public park, field or court, in daylight when you can.", "Tell a friend where you will be and when.", "Do not share your home address, workplace or financial details.", "Arrange your own travel to and from the meetup.", "Leave if anything feels off. You do not owe anyone an explanation.", "Only mark yourself available when you are physically at a public park, field or court.", "Other people see the park you pick, never your exact location.", "In an emergency, call 911."]], true],
+    ["How to behave", ["Be respectful and keep it about playing.",
+      ["No harassment, threats, hate or unwanted advances.", "No selling, advertising, recruiting or asking for money.", "No weapons and no illegal drugs.", "No illegal activity of any kind."],
+      "We may remove posts, ratings or accounts that break these rules."]],
+    ["Ratings and reports", ["Rate honestly, based on your own experience. Do not retaliate against someone for how they rated you.", "You can block or report anyone from a confirmed catch. We may review reports and take action, but we cannot promise to investigate every report or to respond within a set time. Ratings are the opinions of other users, not something we have verified."]],
+    ["We do not check people", ["We do not run background checks or verify anyone’s identity, age, skill, health or intentions. Profile details and ratings are not guarantees. Use your own judgment."]],
+    ["Playing has risks", ["Sports carry a real risk of injury, including from thrown or kicked balls, falls, collisions, heat and overexertion. You take part voluntarily and at your own risk. Check with a doctor if you are unsure you are fit to play, use suitable gear, and stop if you are hurt or uncomfortable. You are responsible for your own equipment and belongings."]],
+    ["No guarantees", ["CatchApp is provided “as is” and “as available.” We do not promise that it will always work, that it will be free of errors, or that anyone will answer your post or show up. The listings you see in this prototype are samples, not real people."]],
+    ["Limits on our responsibility", ["To the fullest extent the law allows, CatchApp and its creators are not responsible for injuries, property damage, lost or stolen items, or other harm that happens at or because of a meetup, or for anything other users say or do. Some places do not allow certain limits, so part of this may not apply to you."]],
+    ["Your information", ["In this early version, your profile, posts and ratings are stored on your own device. If CatchApp adds accounts, we will publish a privacy policy that explains what we collect and why. We never show your exact address to other users."]],
+    ["Changes and ending use", ["We may change these terms and will update the date above when we do. You can stop using CatchApp at any time. We may suspend or end access for anyone who breaks these terms or puts others at risk."]],
+    ["Contact", ["Questions or safety concerns: [contact email]. These terms are governed by the laws of [State]."]]
+  ];
+
+  function termsView() {
+    var h = '<button class="linkbtn" data-action="goto" data-value="me">← Back</button><div><h2 class="title">Terms and safety</h2>' +
+      '<p class="lead">Last updated October 13, 2026</p></div>' +
+      '<p class="fine">Draft terms for the CatchApp prototype. Not yet reviewed by a lawyer.</p><div class="terms">';
+    TERMS.forEach(function (t) {
+      h += '<details class="term"' + (t[2] ? ' open' : '') + '><summary>' + esc(t[0]) + '</summary><div class="term-body">';
+      t[1].forEach(function (part) {
+        if (Array.isArray(part)) h += '<ul>' + part.map(function (li) { return '<li>' + esc(li) + '</li>'; }).join("") + '</ul>';
+        else h += '<p>' + esc(part) + '</p>';
+      });
+      h += '</div></details>';
+    });
+    return h + '</div>';
+  }
+
+  function storyView() {
+    return '<button class="linkbtn" data-action="goto" data-value="home">← Back</button>' +
+      '<article class="story"><h2 class="title">Our story</h2>' +
+      '<p class="story-lead">It started with a ball and a glove.</p>' +
+      '<p>CatchApp came from the mind of Joe and the practicality of his buddy Olly. They’re a couple of friends from a small liberal arts college who could not stop talking about baseball. What they wanted most was simple: someone to throw a ball back and forth with on any open stretch of grass.</p>' +
+      '<p>Playing catch might be the purest thing in sports. No teams, no scoreboard, nobody keeping score. Just the pop of the ball in the glove, a little conversation, and the light going soft in the evening. For a lot of us it is where the game began, usually with a parent, a sibling or a friend.</p>' +
+      '<p>But once the season ends, or you move to a new city, or everyone gets busy, finding someone to have a catch with is surprisingly hard. Joe kept thinking there had to be an easier way to meet a person who just wants to play catch, and Olly figured out how to make it real.</p>' +
+      '<p>So they built CatchApp. Post a time and a park, find someone nearby, throw for a while, and say thanks. Football, hoops and soccer are in here too, because the idea is the same: more people outside, playing together.</p>' +
+      '<p class="story-sign">Let’s catch up.<br><span class="fine">Joe and Olly</span></p>' +
+      '<p>Tried the prototype? We would love to hear what you think.</p>' + feedbackLink() + '</article>';
+  }
+
+  function updateChrome() {
+    var idx = ORDER.indexOf(state.tab);
+    var thumb = document.getElementById("thumb");
+    thumb.style.opacity = idx === -1 ? "0" : "1";
+    if (idx > -1) thumb.style.transform = "translateX(" + (idx * 100) + "%)";
+    var btns = document.querySelectorAll("#dock button");
+    for (var i = 0; i < btns.length; i++) {
+      if (btns[i].getAttribute("data-value") === state.tab) btns[i].setAttribute("aria-current", "page"); else btns[i].removeAttribute("aria-current");
+      var old = btns[i].querySelector(".dot"); if (old) old.remove();
+    }
+    if (state.requests.some(function (r) { return r.status === "confirmed" && !r.seen; })) {
+      var d = document.createElement("i"); d.className = "dot"; document.getElementById("dock-catches").appendChild(d);
+    }
+    if (state.live.on) { var ld = document.createElement("i"); ld.className = "dot live"; document.getElementById("dock-nearby").appendChild(ld); }
+    updateHeader();
+  }
+  function updateHeader() {
+    var me = document.getElementById("me-btn");
+    me.textContent = initials(state.profile.name);
+    if (state.tab === "me") me.setAttribute("aria-current", "page"); else me.removeAttribute("aria-current");
+    var city = state.profile.city.trim();
+    document.getElementById("city-text").textContent = city ? city.split(",")[0] : "Set city";
+    var av = document.getElementById("avatar-lg"); if (av) av.textContent = initials(state.profile.name);
+  }
+  function applySport() {
+    document.documentElement.setAttribute("data-sport", state.sport);
+    document.getElementById("brand-ball").innerHTML = ball(28, true);
+  }
+
+  function render() {
+    var views = { home: homeView, nearby: nearbyView, post: postView, catches: catchesView, me: profileView, story: storyView, terms: termsView };
+    document.getElementById("main").innerHTML = views[state.tab]();
+    updateChrome();
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    var slot = document.getElementById("toast-slot");
+    slot.innerHTML = '<div class="toast" role="status">' + esc(msg) + '</div>';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { slot.innerHTML = ""; }, 3400);
+  }
+  function goto(tab) {
+    state.tab = tab;
+    if (tab === "catches") state.requests.forEach(function (r) { r.seen = true; });
+    save(); render(); window.scrollTo(0, 0);
+  }
+  function scheduleConfirm(id) {
+    setTimeout(function () {
+      var r = reqFor(id); if (!r || r.status !== "pending") return;
+      r.status = "confirmed"; r.seen = state.tab === "catches"; save();
+      var c = byId(id);
+      toast((c ? first(c.name) : "Someone") + (c && c.day === "now" ? " said yes. Head over, about " + c.walk + " min." : " said yes. Time to catch up.")); render();
+    }, 3500);
+  }
+  function scheduleTheirRating(id) {
+    setTimeout(function () {
+      var r = reqFor(id); if (!r || r.status !== "done" || r.theirStars) return;
+      var c = byId(id), s = Math.random() < 0.7 ? 5 : 4;
+      r.theirStars = s; state.received.unshift({ from: c ? first(c.name) : "Someone", stars: s }); save();
+      toast((c ? first(c.name) : "Someone") + " rated you " + s + " balls"); render();
+    }, 3500);
+  }
+
+  /* ---------- logo splash: the ball flies along the red arc, then the wordmark lands ---------- */
+  function runSplash() {
+    var el = document.getElementById("splash");
+    if (!el) return;
+    var arc = document.getElementById("lg-arc"), ballEl = document.getElementById("lg-ball");
+    var P0 = [75, 245], P1 = [375, 48], P2 = [718, 196], T1 = 0.9;
+    function B(t) { var u = 1 - t; return [u * u * P0[0] + 2 * u * t * P1[0] + t * t * P2[0], u * u * P0[1] + 2 * u * t * P1[1] + t * t * P2[1]]; }
+    var E = B(T1), C1 = [P0[0] + T1 * (P1[0] - P0[0]), P0[1] + T1 * (P1[1] - P0[1])];
+    arc.setAttribute("d", "M" + P0[0] + " " + P0[1] + " Q" + C1[0].toFixed(1) + " " + C1[1].toFixed(1) + " " + E[0].toFixed(1) + " " + E[1].toFixed(1));
+    var L = 600; try { L = arc.getTotalLength(); } catch (e) {}
+    arc.style.strokeDasharray = L;
+    var FLY0 = 0.15, FLY = 1.0, HOLD = 2.4;
+    function frame(sec) {
+      var t = Math.min(Math.max((sec - FLY0) / FLY, 0), 1), e = 1 - (1 - t) * (1 - t);
+      var p = B(e), s = 0.3 + 0.7 * e, rot = 720 * e;
+      if (sec > FLY0 + FLY) { var tau = sec - FLY0 - FLY; s *= 1 + 0.07 * Math.exp(-7 * tau) * Math.cos(18 * tau); }
+      ballEl.setAttribute("transform", "translate(" + p[0].toFixed(1) + " " + p[1].toFixed(1) + ") rotate(" + rot.toFixed(1) + ") scale(" + s.toFixed(3) + ")");
+      arc.style.strokeDashoffset = L * (1 - Math.min(e / T1, 1));
+    }
+    var finished = false;
+    function finish() {
+      if (finished) return; finished = true;
+      el.classList.add("out");
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); document.body.style.overflow = ""; }, 520);
+    }
+    el.addEventListener("click", finish);
+    document.body.style.overflow = "hidden";
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { frame(99); setTimeout(finish, 1200); return; }
+    frame(0);
+    var start = null;
+    function tick(ts) {
+      if (finished) return;
+      if (start === null) start = ts;
+      var sec = (ts - start) / 1000;
+      frame(sec);
+      if (sec >= HOLD) { finish(); return; }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener("click", function (e) {
+    var el = e.target.closest("[data-action]"); if (!el) return;
+    var a = el.getAttribute("data-action"), v = el.getAttribute("data-value"), id = el.getAttribute("data-id");
+    var d = state.draft, rt = state.rating;
+    switch (a) {
+      case "goto": goto(v); return;
+      case "sport":
+        state.sport = v;
+        if (SPOTS[v].indexOf(d.spot) === -1) d.spot = SPOTS[v][0];
+        applySport(); save(); break;
+      case "save-profile":
+        if (!state.profile.agreed) { toast("Please confirm you are 18 or older and agree to the terms"); return; }
+        state.profile.done = true; save(); toast(state.profile.name.trim() ? "Welcome, " + first(state.profile.name.trim()) : "Profile saved");
+        goto("home"); return;
+      case "ask":
+        if (!reqFor(id)) { state.requests.unshift({ id: "r" + Date.now(), catchId: id, status: "pending", seen: false }); save(); toast("Request sent to " + first(byId(id).name)); scheduleConfirm(id); }
+        break;
+      case "cancel": state.requests = state.requests.filter(function (r) { return r.catchId !== id; }); save(); toast("Request cancelled"); break;
+      case "nomeet": state.requests = state.requests.filter(function (r) { return r.catchId !== id; }); state.rating = null; save(); toast("No problem. We skipped the rating."); break;
+      case "report-open": state.reportOpen = id; break;
+      case "report-close": state.reportOpen = null; break;
+      case "block":
+        state.blocked.push(id); state.requests = state.requests.filter(function (r) { return r.catchId !== id; });
+        state.reportOpen = null; save(); toast("Blocked. You will not see their posts."); break;
+      case "report": state.reportOpen = null; toast("Report sent. Thanks for flagging it."); break;
+      case "remove-post": state.mine = state.mine.filter(function (c) { return c.id !== id; }); save(); toast("Post removed"); break;
+      case "rate-open": state.rating = { id: id, stars: 0, tags: [], safe: true, block: false }; break;
+      case "rate-cancel": state.rating = null; break;
+      case "star":
+        var n = parseInt(v, 10);
+        if (rt) { if ((rt.stars >= 4) !== (n >= 4)) rt.tags = []; rt.stars = n; }
+        break;
+      case "rtag": if (rt) { var ti = rt.tags.indexOf(v); if (ti > -1) rt.tags.splice(ti, 1); else rt.tags.push(v); } break;
+      case "safe": if (rt) { rt.safe = v === "yes"; if (rt.safe && rt.stars > 2) rt.block = false; } break;
+      case "rblock": if (rt) rt.block = !rt.block; break;
+      case "rate-submit":
+        if (!rt || !rt.stars) return;
+        var rq = reqFor(rt.id), who = byId(rt.id);
+        if (!rq) { state.rating = null; break; }
+        rq.status = "done"; rq.stars = rt.stars; rq.tags = rt.tags.slice(); rq.safe = rt.safe;
+        if (rt.block && state.blocked.indexOf(rt.id) === -1) state.blocked.push(rt.id);
+        state.rating = null; save();
+        toast(rt.safe ? "Rating sent. " + (who ? first(who.name) : "They") + " will see it." : "Thanks for telling us. We will review this.");
+        if (rt.safe) scheduleTheirRating(rt.id);
+        break;
+      case "find-parks": findParks(); return;
+      case "go-now": state.nearbyMode = "now"; goto("nearby"); return;
+      case "mode": state.nearbyMode = v; break;
+      case "ldur": state.live.dur = parseInt(v, 10); break;
+      case "go-live":
+        if (liveSpots().indexOf(state.live.spot) === -1) state.live.spot = liveSpots()[0];
+        state.live.on = true; state.live.until = Date.now() + state.live.dur * 60000; state.ping = null;
+        toast("You are live. People nearby can ping you."); scheduleIncomingPing(); break;
+      case "stop-live": state.live.on = false; state.ping = null; toast("You are no longer available"); break;
+      case "accept-ping":
+        var pc = state.ping && byId(state.ping.id);
+        if (pc) {
+          state.requests.unshift({ id: "r" + Date.now(), catchId: pc.id, status: "confirmed", seen: false });
+          state.live.on = false; save();
+          toast("Accepted. " + first(pc.name) + " is about " + pc.walk + " min away.");
+        }
+        state.ping = null; break;
+      case "decline-ping": state.ping = null; break;
+      case "dur": d.dur = parseInt(v, 10); break;
+      case "post":
+        if (!d.time) { toast("Pick a start time first"); return; }
+        state.mine.unshift({ id: "m" + Date.now(), mine: true, sport: state.sport, name: myName(), day: d.day, time: fmtTime(d.time), dur: d.dur, spot: d.spot, rating: 0 });
+        save(); toast("Posted. Someone nearby can now ask to catch up.");
+        goto("catches"); return;
+      default: return;
+    }
+    render();
+  });
+  document.addEventListener("input", function (e) {
+    var f = e.target.getAttribute("data-pfield");
+    if (f) { state.profile[f] = e.target.value; save(); updateHeader(); }
+  });
+  document.addEventListener("change", function (e) {
+    if (e.target.id === "pf-agree") {
+      state.profile.agreed = e.target.checked; save();
+      var sb = document.querySelector('[data-action="save-profile"]'); if (sb) sb.disabled = !state.profile.agreed;
+      return;
+    }
+    var f = e.target.getAttribute("data-field");
+    if (f === "day" || f === "time" || f === "spot") state.draft[f] = e.target.value;
+    if (f === "lspot") state.live.spot = e.target.value;
+  });
+
+  load();
+  if (!state.profile.done) state.tab = "me";
+  state.requests.forEach(function (r) {
+    if (r.status === "pending") scheduleConfirm(r.catchId);
+    else if (r.status === "done" && !r.theirStars && r.safe !== false) scheduleTheirRating(r.catchId);
+  });
+  setInterval(function () {
+    if (!state.live.on) return;
+    if (Date.now() >= state.live.until) { state.live.on = false; state.ping = null; toast("Your time is up. You are no longer available."); render(); }
+    else if (state.tab === "nearby" && state.nearbyMode === "now") render();
+  }, 20000);
+  applySport();
+  render();
+  runSplash();
+})();
+</script>
+
+</body></html>
