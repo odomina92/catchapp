@@ -965,7 +965,7 @@ a.linkbtn { display: inline-block; }
     var slot = document.getElementById("toast-slot");
     slot.innerHTML = '<div class="toast" role="status">' + esc(msg) + '</div>';
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { slot.innerHTML = ""; }, 3400);
+    toastTimer = setTimeout(function () { slot.innerHTML = ""; }, msg.length > 45 ? 9000 : 3400);
   }
   function goto(tab) {
     state.tab = tab;
@@ -1070,7 +1070,9 @@ a.linkbtn { display: inline-block; }
       })
       .catch(function (e) {
         var m = (e && e.message) || "";
-        toast(/invite/i.test(m) ? "That invite code didn’t work" : /suspend/i.test(m) ? "This account is paused" : "Couldn’t join. Try again.");
+        if (window.console) console.warn(e);
+        remote.joinErr = m;
+        toast(/invite/i.test(m) ? "That invite code didn’t work" : /suspend/i.test(m) ? "This account is paused" : "Couldn’t join: " + (m || "unknown error").slice(0, 120));
       });
   }
   function queuePull() { clearTimeout(remote.t); remote.t = setTimeout(function () { pull(); }, 300); }
