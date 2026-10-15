@@ -409,69 +409,82 @@ a.linkbtn { display: inline-block; }
     return 3958.8 * 2 * Math.asin(Math.sqrt(h));
   }
   var OSM_SPORT = { baseball: "baseball|softball", football: "american_football|football", basketball: "basketball", soccer: "soccer" };
+  function boxAround(la, lo, h) { var w = h / Math.max(Math.cos(la * Math.PI / 180), 0.3); return { s: la - h, n: la + h, w: lo - w, e: lo + w }; }
+  function growBox(bx, f) { var la = (bx.s + bx.n) / 2, lo = (bx.w + bx.e) / 2, h = (bx.n - bx.s) / 2 * f, w = (bx.e - bx.w) / 2 * f; return { s: la - h, n: la + h, w: lo - w, e: lo + w }; }
   function findParks() {
     if (!navigator.geolocation) { geo.status = "err"; render(); return; }
-    geo.status = "locating"; geo.sport = state.sport; geo.dbg = []; geo.place = ""; render();
-    navigator.geolocation.getCurrentPosition(function (pos) { lookupParks(pos.coords.latitude, pos.coords.longitude); },
+    geo.status = "locating"; geo.sport = state.sport; geo.dbg = []; geo.place = ""; geo.typed = false; render();
+    navigator.geolocation.getCurrentPosition(function (pos) { var la = pos.coords.latitude, lo = pos.coords.longitude; lookupParks(la, lo, boxAround(la, lo, 0.03), 0); },
       function (err) { geo.status = err && err.code === 1 ? "denied" : "err"; render(); }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 });
   }
   function findArea(q) {
     q = String(q || "").trim();
     if (!q) { toast("Type a town or area first"); return; }
-    geo.status = "locating"; geo.sport = state.sport; geo.dbg = []; geo.place = ""; render();
-    fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=" + encodeURIComponent(q))
+    geo.status = "locating"; geo.sport = state.sport; geo.dbg = []; geo.place = ""; geo.typed = false; render();
+    fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=0&q=" + encodeURIComponent(q))
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function (a) {
         if (!a || !a.length) { geo.status = "noarea"; render(); return; }
-        geo.place = String(a[0].display_name || q).split(",").slice(0, 2).join(",").trim();
-        lookupParks(+a[0].lat, +a[0].lon);
+        var r0 = a[0], la = +r0.lat, lo = +r0.lon, bb = r0.boundingbox, bx;
+        geo.place = String(r0.display_name || q).split(",").slice(0, 3).join(",").trim();
+        if (bb && bb.length === 4) bx = { s: +bb[0], n: +bb[1], w: +bb[2], e: +bb[3] };
+        var hh = bx ? Math.max((bx.n - bx.s) / 2, 0.02) : 0.03, mid = bx ? { la: (bx.s + bx.n) / 2, lo: (bx.w + bx.e) / 2 } : { la: la, lo: lo };
+        hh = Math.min(hh + 0.008, 0.12);
+        lookupParks(la, lo, boxAround(mid.la, mid.lo, hh), 0);
       })
       .catch(function (e) { geo.dbg.push("area: " + (e && e.message || e)); geo.status = "neterr"; render(); });
   }
-  function lookupParks(la, lo) {
+  function lookupParks(la, lo, bx, attempt) {
     var sp = state.sport; geo.sport = sp; geo.status = "loading"; render();
-      var ar = "(around:4000," + la + "," + lo + ")";
-    var q = "[out:json][timeout:20];(nwr" + ar + '["leisure"~"^(park|recreation_ground|playground|pitch|sports_centre|stadium|common)$"]["name"];nwr' + ar + '["sport"~"' + OSM_SPORT[sp] + '"]["name"];);out center 120;';
+    var bb = bx.s.toFixed(5) + "," + bx.w.toFixed(5) + "," + bx.n.toFixed(5) + "," + bx.e.toFixed(5);
+    var pub = '["access"!~"^(private|no)$"]';
+    var q = "[out:json][timeout:25];(" +
+      "nwr(" + bb + ')["leisure"~"^(park|recreation_ground|playground|pitch|sports_centre|stadium|common)$"]["name"]' + pub + ";" +
+      "nwr(" + bb + ')["landuse"="recreation_ground"]["name"]' + pub + ";" +
+      "nwr(" + bb + ')["leisure"]["sport"~"' + OSM_SPORT[sp] + '"]["name"]' + pub + ";" +
+      ");out center 250;";
     var hosts = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
     function ask(i) {
       if (i >= hosts.length) return Promise.reject(new Error("all failed"));
       var ctl = window.AbortController ? new AbortController() : null;
-      var t = setTimeout(function () { if (ctl) ctl.abort(); }, 14000);
+      var t = setTimeout(function () { if (ctl) ctl.abort(); }, 16000);
       return fetch(hosts[i], { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(q), signal: ctl ? ctl.signal : undefined })
         .then(function (r) { clearTimeout(t); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (j) { if (j.remark && !(j.elements && j.elements.length)) throw new Error("busy"); return j; })
         .catch(function (e) { clearTimeout(t); geo.dbg.push("map" + (i + 1) + ": " + (e && e.message || e)); return ask(i + 1); });
     }
+    function show(out) {
+      var seen = {}, list = [];
+      out.sort(function (a, b) { return a.d - b.d; });
+      out.forEach(function (x) { var k = x.name.toLowerCase(); if (seen[k]) return; seen[k] = 1; list.push(x); });
+      if (!list.length && attempt === 0) { lookupParks(la, lo, growBox(bx, 2.2), 1); return; }
+      geo.parks = list.slice(0, 12); geo.sport = sp; geo.status = list.length ? "ok" : "none"; geo.typed = false;
+      if (list.length) { state.live.spot = list[0].name; if (REMOTE) state.draft.spot = list[0].name; }
+      render();
+    }
     ask(0).then(function (j) {
-        var seen = {}, out = [];
-        (j.elements || []).forEach(function (e) {
-          var n = e.tags && e.tags.name, c = e.center || e; if (!n || seen[n] || c.lat == null) return;
-          seen[n] = 1; out.push({ name: n, lat: c.lat, lon: c.lon, d: miles(la, lo, c.lat, c.lon) });
-        });
-        out.sort(function (a, b) { return a.d - b.d; });
-        geo.parks = out.slice(0, 8); geo.sport = sp; geo.status = out.length ? "ok" : "none";
-        if (out.length) { state.live.spot = out[0].name; if (REMOTE) state.draft.spot = out[0].name; }
-        render();
-      })
-      .catch(function () {
-        var dl = 0.06, vb = (lo - dl * 1.3) + "," + (la + dl) + "," + (lo + dl * 1.3) + "," + (la - dl);
-        var terms = ["park", { baseball: "baseball field", football: "football field", basketball: "basketball court", soccer: "soccer field" }[sp]];
-        return Promise.all(terms.map(function (t) {
-          return fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=20&bounded=1&q=" + encodeURIComponent(t) + "&viewbox=" + vb)
-            .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).catch(function (e) { geo.dbg.push("search: " + (e && e.message || e)); return null; });
-        })).then(function (rs) {
-          if (!rs[0] && !rs[1]) throw new Error("none");
-          var seen = {}, out = [];
-          rs.forEach(function (arr) { (arr || []).forEach(function (r) {
-            var n = r.name || (r.display_name || "").split(",")[0]; if (!n || seen[n]) return;
-            seen[n] = 1; out.push({ name: n, lat: +r.lat, lon: +r.lon, d: miles(la, lo, +r.lat, +r.lon) });
-          }); });
-          out.sort(function (a, b) { return a.d - b.d; });
-          geo.parks = out.slice(0, 8); geo.sport = sp; geo.status = out.length ? "ok" : "none";
-          if (out.length) { state.live.spot = out[0].name; if (REMOTE) state.draft.spot = out[0].name; }
-          render();
-        });
-      }).catch(function () { geo.status = "neterr"; render(); });
+      var out = [];
+      (j.elements || []).forEach(function (e) {
+        var n = e.tags && e.tags.name, c = e.center || e; if (!n || c.lat == null) return;
+        out.push({ name: n, lat: c.lat, lon: c.lon, d: miles(la, lo, c.lat, c.lon) });
+      });
+      show(out);
+    }).catch(function () {
+      var vb = bx.w + "," + bx.n + "," + bx.e + "," + bx.s;
+      var terms = ["park", { baseball: "baseball field", football: "football field", basketball: "basketball court", soccer: "soccer field" }[sp]];
+      return Promise.all(terms.map(function (t) {
+        return fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=25&bounded=1&q=" + encodeURIComponent(t) + "&viewbox=" + vb)
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).catch(function (e) { geo.dbg.push("search: " + (e && e.message || e)); return null; });
+      })).then(function (rs) {
+        if (!rs[0] && !rs[1]) throw new Error("none");
+        var out = [];
+        rs.forEach(function (arr) { (arr || []).forEach(function (r) {
+          var n = r.name || ""; if (!n) return;
+          out.push({ name: n, lat: +r.lat, lon: +r.lon, d: miles(la, lo, +r.lat, +r.lon) });
+        }); });
+        show(out);
+      });
+    }).catch(function () { geo.status = "neterr"; render(); });
   }
   function geoMsg() {
     if (geo.status === "ok" && geo.place) return "Showing the closest spots to " + geo.place + ".";
@@ -482,7 +495,7 @@ a.linkbtn { display: inline-block; }
     denied: "Location is blocked here. This preview page may not be allowed to use it. Pick your park from the list below.",
     err: "Couldn’t get your location here, so pick your park from the list below.",
     neterr: "Couldn’t load nearby parks right now, so type your park or pick from the list below.",
-    none: "No named parks or fields found within about 2.5 miles. Pick from the list below.",
+    none: "No named parks or fields found in that area. Try a nearby town, or type the park name.",
     noarea: "Couldn’t find that area. Try a town and state, like Durham, CT.",
     ok: "Showing the closest spots to you."
   };
@@ -559,14 +572,17 @@ a.linkbtn { display: inline-block; }
       '<button class="btn small" data-action="find-area"' + (busy ? " disabled" : "") + '>Search</button></div></div>' +
       (geo.status !== "idle" ? '<p class="fine" role="status">' + esc(geoMsg()) + '</p>' : '');
   }
-  function geoActive() { return geo.parks.length && geo.sport === state.sport ? geo.parks.map(function (p) { return p.name; }) : null; }
+  function geoActive() { return !geo.typed && geo.parks.length && geo.sport === state.sport ? geo.parks.map(function (p) { return p.name; }) : null; }
   function spotField(id, field, label, cur, spots) {
-    if (REMOTE && !geoActive()) {
-      return '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" data-field="' + field + '" maxlength="80" autocomplete="off" placeholder="Park or field name" value="' + esc(cur) + '"></div>';
+    var list = geoActive(), listed = geo.parks.length && geo.sport === state.sport;
+    if (geo.typed || (REMOTE && !list)) {
+      return '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" data-field="' + field + '" maxlength="80" autocomplete="off" placeholder="Park or field name" value="' + esc(cur) + '">' +
+        (listed ? '<button class="linkbtn" data-action="use-list">Pick from the list instead</button>' : '') + '</div>';
     }
     var pick = spots.indexOf(cur) > -1 ? cur : spots[0];
     return '<div class="field"><label for="' + id + '">' + label + '</label><select class="input" id="' + id + '" data-field="' + field + '">' +
-      spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (pick === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select></div>';
+      spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (pick === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select>' +
+      (list ? '<button class="linkbtn" data-action="type-spot">Not listed? Type the name</button>' : '') + '</div>';
   }
 
   var STORE_KEY = "catchapp-v4";
@@ -1330,12 +1346,14 @@ a.linkbtn { display: inline-block; }
         if (rt.safe) scheduleTheirRating(rt.id);
         break;
       case "find-parks": findParks(); return;
+      case "type-spot": geo.typed = true; break;
+      case "use-list": geo.typed = false; break;
       case "find-area": findArea(geo.query != null ? geo.query : state.profile.city); return;
       case "go-now": state.nearbyMode = "now"; goto("nearby"); return;
       case "mode": state.nearbyMode = v; break;
       case "ldur": state.live.dur = parseInt(v, 10); break;
       case "go-live":
-        if (liveSpots().indexOf(state.live.spot) === -1) state.live.spot = liveSpots()[0];
+        if (!geo.typed && liveSpots().indexOf(state.live.spot) === -1) state.live.spot = liveSpots()[0];
         state.live.on = true; state.live.until = Date.now() + state.live.dur * 60000; state.ping = null;
         toast("You are live. People nearby can ping you."); scheduleIncomingPing(); break;
       case "stop-live": state.live.on = false; state.ping = null; toast("You are no longer available"); break;
@@ -1350,6 +1368,7 @@ a.linkbtn { display: inline-block; }
       case "decline-ping": state.ping = null; break;
       case "dur": d.dur = parseInt(v, 10); break;
       case "post":
+        var gsp = geoActive(); if (gsp && gsp.indexOf(d.spot) === -1) d.spot = gsp[0];
         if (!d.time) { toast("Pick a start time first"); return; }
         state.mine.unshift({ id: "m" + Date.now(), mine: true, sport: state.sport, name: myName(), day: d.day, time: fmtTime(d.time), dur: d.dur, spot: d.spot, rating: 0 });
         save(); toast("Posted. Someone nearby can now ask to catch up.");
