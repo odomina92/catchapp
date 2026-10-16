@@ -123,6 +123,18 @@ h1, h2, h3, p { margin: 0; }
   font-family: var(--font-display); font-size: 16px; display: grid; place-items: center;
 }
 .me-btn[aria-current="page"] { border-color: var(--ink); }
+.me-btn { overflow: hidden; padding: 0; }
+.avatar-lg img, .me-btn img, .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.av { width: 34px; height: 34px; border-radius: 50%; background: var(--mustard); color: var(--on-mustard); display: grid; place-items: center; font-family: var(--font-display); font-size: 14px; flex: none; overflow: hidden; }
+label.btn { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.photo-actions { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.card.fav { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; }
+.card.fav span { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+#main[data-tab="me"] > .home-links { justify-content: center; }
+#main[data-tab="me"] > .fine, #main[data-tab="me"] > .sub { text-align: center; }
+#main[data-tab="me"] .form > .fine { text-align: center; }
+#main[data-tab="me"] .form > .linkbtn { align-self: center; }
 
 main { display: flex; flex-direction: column; gap: 18px; padding-block: 8px 16px; }
 
@@ -245,7 +257,7 @@ h2.title { font-family: var(--font-display); font-weight: 400; font-size: 36px; 
 .stat { background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px; padding: 12px 16px; }
 .stat b { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: 400; font-size: 34px; line-height: 1.1; }
 .stat span { font-size: 13px; color: var(--ink-2); }
-.avatar-lg { width: 64px; height: 64px; border-radius: 50%; background: var(--mustard); color: var(--on-mustard); display: grid; place-items: center; font-family: var(--font-display); font-size: 26px; flex: none; }
+.avatar-lg { overflow: hidden; width: 64px; height: 64px; border-radius: 50%; background: var(--mustard); color: var(--on-mustard); display: grid; place-items: center; font-family: var(--font-display); font-size: 26px; flex: none; }
 
 /* floating dock */
 .dock {
@@ -554,6 +566,42 @@ a.linkbtn { display: inline-block; }
   var REMOTE = !!(CFG.url && CFG.key && /^https:\/\//.test(CFG.url) && !/PASTE/.test(CFG.url + CFG.key));
   var sb = null, me = null;
   var remote = { ready: !REMOTE, failed: false, banned: false, posts: [], live: [], syn: {}, incoming: [], known: {}, sig: "", busy: false, again: false, first: true, sync: false };
+  function safeAvatar(u) { return /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(u || "") && u.length < 40000 ? u : ""; }
+  function favList() { return Array.isArray(state.profile.favs) ? state.profile.favs : []; }
+  function avatarHtml(url, name) { return '<span class="av" aria-hidden="true">' + (url ? '<img src="' + esc(url) + '" alt="">' : esc(initials(name))) + '</span>'; }
+  function who(c) { return '<span class="who">' + avatarHtml(c.avatar, c.name) + '<h3 class="name">' + esc(c.name) + '</h3></span>'; }
+  function syncProfile(patch) {
+    if (!REMOTE || !me) return;
+    sb.from("profiles").update(patch).eq("id", me).then(function (r) { if (r && r.error) { toast("Couldn’t save that to the server. Try again."); if (window.console) console.warn(r.error); } });
+  }
+  function saveFavs() { save(); syncProfile({ favs: favList() }); }
+  function addFav(name) {
+    name = String(name != null ? name : state.favDraft || "").trim().slice(0, 80);
+    if (!name) { toast("Type a park name first"); return; }
+    var f = favList().slice();
+    if (f.some(function (x) { return x.toLowerCase() === name.toLowerCase(); })) { toast("Already in your favorites"); return; }
+    if (f.length >= 8) { toast("You can save up to 8 favorites"); return; }
+    f.push(name); state.profile.favs = f; state.favDraft = ""; saveFavs(); toast("Saved " + name); render();
+  }
+  function removeFav(i) { var f = favList().slice(); f.splice(i, 1); state.profile.favs = f; saveFavs(); render(); }
+  function toggleFav(name) {
+    var i = -1; favList().forEach(function (x, k) { if (x.toLowerCase() === String(name).toLowerCase()) i = k; });
+    if (i > -1) removeFav(i); else addFav(name);
+  }
+  function setAvatar(url) { state.profile.avatar = url; save(); updateHeader(); syncProfile({ avatar: url }); render(); }
+  function resizeImage(file, cb) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      var im = new Image();
+      im.onload = function () {
+        var S = 160, c = document.createElement("canvas"); c.width = c.height = S;
+        var m = Math.min(im.width, im.height); c.getContext("2d").drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, S, S);
+        cb(c.toDataURL("image/jpeg", 0.8));
+      };
+      im.onerror = function () { cb(null); }; im.src = fr.result;
+    };
+    fr.onerror = function () { cb(null); }; fr.readAsDataURL(file);
+  }
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
   function dayLabelFromIso(iso) {
     var d = new Date(iso), n = new Date();
@@ -584,15 +632,25 @@ a.linkbtn { display: inline-block; }
   }
   function geoActive() { return !geo.typed && geo.parks.length && geo.sport === state.sport ? geo.parks.map(function (p) { return p.name; }) : null; }
   function spotField(id, field, label, cur, spots) {
-    var list = geoActive(), listed = geo.parks.length && geo.sport === state.sport;
-    if (geo.typed || (REMOTE && !list)) {
-      return '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" data-field="' + field + '" maxlength="80" autocomplete="off" placeholder="Park or field name" value="' + esc(cur) + '">' +
-        (listed ? '<button class="linkbtn" data-action="use-list">Pick from the list instead</button>' : '') + '</div>';
+    var list = geoActive(), listed = geo.parks.length && geo.sport === state.sport, typed = geo.typed || (REMOTE && !list);
+    var pick = typed ? cur : (spots.indexOf(cur) > -1 ? cur : spots[0]), favs = favList();
+    var h = '<div class="field"><label for="' + id + '">' + label + '</label>';
+    if (favs.length) h += '<div class="chips favchips" role="group" aria-label="Favorite parks">' + favs.map(function (f, i) {
+      return '<button class="chip" data-action="pick-fav" data-id="' + field + '" data-value="' + i + '" aria-pressed="' + (f === pick) + '">★ ' + esc(f) + '</button>';
+    }).join("") + '</div>';
+    if (typed) {
+      h += '<input class="input" id="' + id + '" data-field="' + field + '" maxlength="80" autocomplete="off" placeholder="Park or field name" value="' + esc(cur) + '">' +
+        (listed ? '<button class="linkbtn" data-action="use-list">Pick from the list instead</button>' : '');
+    } else {
+      h += '<select class="input" id="' + id + '" data-field="' + field + '">' +
+        spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (pick === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select>' +
+        (list ? '<button class="linkbtn" data-action="type-spot">Not listed? Type the name</button>' : '');
     }
-    var pick = spots.indexOf(cur) > -1 ? cur : spots[0];
-    return '<div class="field"><label for="' + id + '">' + label + '</label><select class="input" id="' + id + '" data-field="' + field + '">' +
-      spots.map(function (p) { var k = parkFor(p); return '<option value="' + esc(p) + '"' + (pick === p ? " selected" : "") + '>' + esc(p) + (k ? " (" + k.d.toFixed(1) + " mi)" : "") + '</option>'; }).join("") + '</select>' +
-      (list ? '<button class="linkbtn" data-action="type-spot">Not listed? Type the name</button>' : '') + '</div>';
+    if (pick && String(pick).trim()) {
+      var isFav = favs.some(function (x) { return x.toLowerCase() === String(pick).toLowerCase(); });
+      h += '<button class="linkbtn" data-action="fav-toggle" data-value="' + esc(pick) + '">' + (isFav ? "★ Saved to favorites" : "☆ Save as a favorite") + '</button>';
+    }
+    return h + '</div>';
   }
 
   var STORE_KEY = "catchapp-v4";
@@ -600,7 +658,7 @@ a.linkbtn { display: inline-block; }
     tab: "home", sport: "baseball", requests: [], mine: [], blocked: [], received: [],
     nearbyMode: "later", live: { on: false, spot: "", until: 0, dur: 30 }, ping: null,
     draft: { dur: 30, day: "today", time: "17:30", spot: SPOTS.baseball[0] },
-    profile: { name: "", city: "", bio: "", done: false, agreed: false }, rating: null, reportOpen: null
+    profile: { name: "", city: "", bio: "", favs: [], avatar: "", done: false, agreed: false }, rating: null, reportOpen: null
   };
 
   function load() {
@@ -744,7 +802,7 @@ a.linkbtn { display: inline-block; }
       else if (r.status === "pending") btn = '<button class="btn" disabled>Request sent</button>';
       else if (r.status === "confirmed") btn = '<button class="btn" disabled>Confirmed</button>';
       else btn = '<button class="btn" disabled>You caught up</button>';
-      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3>' + ratingChip(c) + '</div>' +
+      return '<article class="card"><div class="row">' + who(c) + ratingChip(c) + '</div>' +
         '<div><p class="when">' + esc(whenLabel(c)) + ' · ' + c.dur + ' min</p><p class="where">' + esc(c.spot) + (c.dist != null ? ' · ' + c.dist.toFixed(1) + ' mi' : '') + '</p></div>' + btn + '</article>';
     }).join("") + '</div><p class="fine">' + (REMOTE ? 'Real people from the pilot invite list. Meet in public places and see Safety tips.' : 'Sample listings. Nobody here is a real person yet.') + '</p>';
     return h;
@@ -761,7 +819,7 @@ a.linkbtn { display: inline-block; }
     var spot = spots.indexOf(L.spot) > -1 ? L.spot : spots[0];
     var pc = state.ping && byId(state.ping.id);
     if (pc) {
-      h += '<article class="card"><div class="row"><h3 class="name">' + esc(pc.name) + ' pinged you</h3>' + ratingChip(pc) + '</div>' +
+      h += '<article class="card"><div class="row"><span class="who">' + avatarHtml(pc.avatar, pc.name) + '<h3 class="name">' + esc(pc.name) + ' pinged you</h3></span>' + ratingChip(pc) + '</div>' +
         '<p class="where">Wants to play' + (pc.walk ? '. About ' + pc.walk + ' min away at ' : ' at ') + esc(pc.spot) + '.</p>' +
         '<div class="actions"><button class="btn small" data-action="accept-ping">Accept</button><button class="btn ghost small" data-action="decline-ping">Not now</button></div></article>';
     }
@@ -788,7 +846,7 @@ a.linkbtn { display: inline-block; }
       else if (r.status === "pending") btn = '<button class="btn" disabled>Pinged</button>';
       else if (r.status === "confirmed") btn = '<button class="btn" disabled>On the way</button>';
       else btn = '<button class="btn" disabled>You caught up</button>';
-      return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3>' + ratingChip(c) + '</div>' +
+      return '<article class="card"><div class="row">' + who(c) + ratingChip(c) + '</div>' +
         '<div><p class="when"><span class="live-dot" aria-hidden="true"></span>' + (c.walk ? c.walk + ' min walk · ' : '') + c.dur + ' min left</p><p class="where">' + esc(c.spot) + '</p></div>' + btn + '</article>';
     }).join("") + '</div>';
     return h + '<p class="fine">' + (REMOTE ? 'Real people from the pilot invite list. ' : 'Other people shown here are samples. ') + 'Your location is only used to find nearby parks and is never saved or shown.</p>';
@@ -846,7 +904,7 @@ a.linkbtn { display: inline-block; }
   function requestCard(r) {
     var c = byId(r.catchId); if (!c) return "";
     var conf = r.status === "confirmed", done = r.status === "done";
-    var h = '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3><span class="badge ' + (done ? "" : conf ? "good" : "wait") + '">' + (done ? "Played" : conf ? "Confirmed" : "Waiting") + '</span></div>' +
+    var h = '<article class="card"><div class="row">' + who(c) + '<span class="badge ' + (done ? "" : conf ? "good" : "wait") + '">' + (done ? "Played" : conf ? "Confirmed" : "Waiting") + '</span></div>' +
       '<div><p class="when">' + esc(whenLabel(c)) + ' · ' + c.dur + ' min</p><p class="where">' + SPORTS[c.sport].label + ' · ' + esc(c.spot) + '</p></div>';
     if (done) {
       h += '<div class="row"><span class="fine">You gave</span>' + balls(r.stars) + '</div>';
@@ -874,7 +932,7 @@ a.linkbtn { display: inline-block; }
     if (REMOTE && remote.incoming.length) {
       h += '<h3 class="sub">Wants to catch up</h3><div class="list">' + remote.incoming.map(function (q) {
         var c = byId(q.catchId); if (!c) return "";
-        return '<article class="card"><div class="row"><h3 class="name">' + esc(c.name) + '</h3>' + ratingChip(c) + '</div>' +
+        return '<article class="card"><div class="row">' + who(c) + ratingChip(c) + '</div>' +
           '<div><p class="when">' + esc(whenLabel(c)) + (c.dur ? ' · ' + c.dur + ' min' : '') + '</p><p class="where">' + SPORTS[c.sport].label + ' · ' + esc(c.spot) + '</p></div>' +
           '<div class="actions"><button class="btn small" data-action="accept-req" data-id="' + q.rid + '">Accept</button><button class="btn ghost small" data-action="decline-req" data-id="' + q.rid + '">Not now</button></div></article>';
       }).join("") + '</div>';
@@ -894,8 +952,10 @@ a.linkbtn { display: inline-block; }
   function profileView() {
     var p = state.profile, avg = avgReceived(), setup = !p.done;
     var played = state.requests.filter(function (r) { return r.status === "done"; }).length;
-    var h = '<div class="row" style="justify-content:flex-start"><div class="avatar-lg" id="avatar-lg" aria-hidden="true">' + esc(initials(p.name)) + '</div>' +
+    var h = '<div class="row" style="justify-content:flex-start"><div class="avatar-lg" id="avatar-lg" aria-hidden="true">' + (p.avatar ? '<img src="' + esc(p.avatar) + '" alt="">' : esc(initials(p.name))) + '</div>' +
       '<div><h2 class="title">' + (setup ? "Welcome" : "You") + '</h2>' + (setup ? '<p class="lead">Tell people who they are meeting.</p>' : '') + '</div></div>';
+    if (!setup) h += '<div class="photo-actions"><label class="btn ghost small" for="pf-photo">' + (p.avatar ? "Change photo" : "Add a photo") + '</label><input type="file" id="pf-photo" accept="image/*" hidden>' +
+      (p.avatar ? '<button class="linkbtn" data-action="remove-photo">Remove</button>' : '') + '</div>';
     if (!setup) h += '<div class="stats"><div class="stat"><b>' + played + '</b><span>Played</span></div>' +
       '<div class="stat"><b>' + (avg ? ball(24, true) + avg.toFixed(1) : "New") + '</b><span>' + (avg ? "Your rating" : "Rated after your first one") + '</span></div></div>';
     h += '<div class="form">' +
@@ -906,6 +966,13 @@ a.linkbtn { display: inline-block; }
       (setup ? '<label class="agree"><input type="checkbox" id="pf-agree"' + (p.agreed ? ' checked' : '') + '><span>I am 18 or older and agree to the Terms and safety rules.</span></label>' +
         '<button class="linkbtn" data-action="goto" data-value="terms">Read the Terms and safety rules</button>' +
         '<button class="btn" data-action="save-profile"' + (p.agreed ? '' : ' disabled') + '>' + (REMOTE ? 'Join the pilot' : 'Save and start') + '</button>' + (REMOTE ? '<p class="fine">Your account stays on this device and browser. No email or phone number needed.</p>' : '') : '') + '</div>';
+    if (!setup) {
+      var fl = favList();
+      h += '<h3 class="sub">Favorite parks</h3>' + (fl.length ? '<div class="list">' + fl.map(function (f, i) {
+        return '<div class="card fav"><span>★ ' + esc(f) + '</span><button class="linkbtn" data-action="fav-remove" data-value="' + i + '">Remove</button></div>';
+      }).join("") + '</div>' : '<p class="fine">Save the parks you play at most. They show up as quick picks when you post or go live.</p>') +
+        '<div class="areabar"><input class="input" id="pf-fav" data-field="favdraft" maxlength="80" autocomplete="off" placeholder="Add a park you like" value="' + esc(state.favDraft || "") + '"><button class="btn small" data-action="fav-add">Add</button></div>';
+    }
     if (state.received.length) {
       h += '<h3 class="sub">Recent ratings</h3><div class="list">' + state.received.slice(0, 5).map(function (x) {
         return '<div class="card"><div class="row"><h3 class="name">' + esc(x.from) + '</h3>' + balls(x.stars) + '</div></div>';
@@ -919,7 +986,7 @@ a.linkbtn { display: inline-block; }
   var TERMS = [
     ["What CatchApp is", ["CatchApp helps people find someone nearby to play catch, toss a football, shoot hoops or kick a soccer ball. We connect people. We do not organize, supervise or attend any meetup, and we are not a party to anything you arrange with another person."]],
     ["Who can use it", ["You must be 18 or older to use CatchApp."]],
-    ["Your profile", ["Use your real first name and a city you actually play in. Do not pretend to be someone else. You are responsible for what happens on your profile."]],
+    ["Your profile", ["Use your real first name and a city you actually play in. Do not pretend to be someone else. A profile photo is optional. If you add one, use a clear photo of yourself, nothing offensive, and no one else’s picture. You are responsible for what happens on your profile."]],
     ["Meeting safely", ["Meetups happen between you and another person, so please look out for yourself.",
       ["Meet in a public park, field or court, in daylight when you can.", "Tell a friend where you will be and when.", "Do not share your home address, workplace or financial details.", "Arrange your own travel to and from the meetup.", "Leave if anything feels off. You do not owe anyone an explanation.", "Only mark yourself available when you are physically at a public park, field or court.", "Other people see the park you pick, never your exact location.", "In an emergency, call 911."]], true],
     ["How to behave", ["Be respectful and keep it about playing.",
@@ -930,7 +997,7 @@ a.linkbtn { display: inline-block; }
     ["Playing has risks", ["Sports carry a real risk of injury, including from thrown or kicked balls, falls, collisions, heat and overexertion. You take part voluntarily and at your own risk. Check with a doctor if you are unsure you are fit to play, use suitable gear, and stop if you are hurt or uncomfortable. You are responsible for your own equipment and belongings."]],
     ["No guarantees", ["CatchApp is provided “as is” and “as available.” We do not promise that it will always work, that it will be free of errors, or that anyone will answer your post or show up. " + (REMOTE ? "This is an early pilot, so expect bugs and changes." : "The listings you see in this prototype are samples, not real people.") + ""]],
     ["Limits on our responsibility", ["To the fullest extent the law allows, CatchApp and its creators are not responsible for injuries, property damage, lost or stolen items, or other harm that happens at or because of a meetup, or for anything other users say or do. Some places do not allow certain limits, so part of this may not apply to you."]],
-    ["Your information", [REMOTE ? "In this invite-only pilot, your first name, city, posts, requests, ratings and reports are stored on our servers so other testers can see them. Other members can see your name, city and rating. We do not collect your email address, phone number or exact location. Your account is tied to the browser you joined from. To have your data deleted, email us at the address below. We never show your exact address to other users." : "In this early version, your profile, posts and ratings are stored on your own device. If CatchApp adds accounts, we will publish a privacy policy that explains what we collect and why. We never show your exact address to other users."]],
+    ["Your information", [REMOTE ? "In this invite-only pilot, your first name, city, profile photo, favorite parks, posts, requests, ratings and reports are stored on our servers. Other members can see your name, city, photo and rating. We do not collect your email address, phone number or exact location. Your account is tied to the browser you joined from. To have your data deleted, email us at the address below. We never show your exact address to other users." : "In this early version, your profile, posts and ratings are stored on your own device. If CatchApp adds accounts, we will publish a privacy policy that explains what we collect and why. We never show your exact address to other users."]],
     ["Changes and ending use", ["We may change these terms and will update the date above when we do. You can stop using CatchApp at any time. We may suspend or end access for anyone who breaks these terms or puts others at risk."]],
     ["Contact", ["Questions or safety concerns: catchappquestion@gmail.com. These terms are governed by the laws of the State of Connecticut."]]
   ];
@@ -995,11 +1062,11 @@ a.linkbtn { display: inline-block; }
   }
   function updateHeader() {
     var me = document.getElementById("me-btn");
-    me.textContent = initials(state.profile.name);
+    me.innerHTML = state.profile.avatar ? '<img src="' + esc(state.profile.avatar) + '" alt="">' : esc(initials(state.profile.name));
     if (state.tab === "me") me.setAttribute("aria-current", "page"); else me.removeAttribute("aria-current");
     var city = state.profile.city.trim();
     document.getElementById("city-text").textContent = city ? city.split(",")[0] : "Set city";
-    var av = document.getElementById("avatar-lg"); if (av) av.textContent = initials(state.profile.name);
+    var av = document.getElementById("avatar-lg"); if (av) av.innerHTML = state.profile.avatar ? '<img src="' + esc(state.profile.avatar) + '" alt="">' : esc(initials(state.profile.name));
   }
   function applySport() {
     document.documentElement.setAttribute("data-sport", state.sport);
@@ -1094,7 +1161,7 @@ a.linkbtn { display: inline-block; }
   /* ---------- pilot mode: sign-in, syncing and actions ---------- */
   function nm(P, id) { return (P[id] && P[id].name) || "Someone"; }
   function avg(P, id) { return P[id] && P[id].avg_stars ? +P[id].avg_stars : 0; }
-  function setProfile(row) { state.profile = { name: row.name, city: row.city || "", bio: row.bio || "", done: true, agreed: true }; }
+  function setProfile(row) { state.profile = { name: row.name, city: row.city || "", bio: row.bio || "", favs: Array.isArray(row.favs) ? row.favs : [], avatar: safeAvatar(row.avatar), done: true, agreed: true }; }
   function noAccount() { remote.ready = true; state.tab = "me"; state.profile.done = false; render(); }
   function remoteFail() { remote.ready = true; remote.failed = true; render(); }
   function initRemote() {
@@ -1185,13 +1252,13 @@ a.linkbtn { display: inline-block; }
     state.mine = []; remote.posts = []; remote.live = []; remote.syn = {}; remote.incoming = []; state.ping = null;
     remote.warned = false;
     posts.forEach(function (p) {
-      var c = { id: "p:" + p.id, pid: p.id, uid: p.user_id, sport: p.sport, name: nm(P, p.user_id), rating: avg(P, p.user_id), day: "later", label: dayLabelFromIso(p.starts_at), starts: p.starts_at, dur: p.dur, spot: p.spot };
-      if (p.user_id === me) { c.mine = true; c.name = myName(); c.rating = 0; state.mine.push(c); } else remote.posts.push(c);
+      var c = { id: "p:" + p.id, pid: p.id, uid: p.user_id, sport: p.sport, name: nm(P, p.user_id), rating: avg(P, p.user_id), avatar: safeAvatar(P[p.user_id] && P[p.user_id].avatar), day: "later", label: dayLabelFromIso(p.starts_at), starts: p.starts_at, dur: p.dur, spot: p.spot };
+      if (p.user_id === me) { c.mine = true; c.name = myName(); c.rating = 0; c.avatar = state.profile.avatar; state.mine.push(c); } else remote.posts.push(c);
     });
     var mineLive = null;
     live.forEach(function (l) {
       if (l.user_id === me) { mineLive = l; return; }
-      remote.live.push({ id: "l:" + l.user_id, uid: l.user_id, live: true, sport: l.sport, name: nm(P, l.user_id), rating: avg(P, l.user_id), day: "now", dur: Math.max(1, Math.ceil((Date.parse(l.until) - now) / 60000)), spot: l.spot });
+      remote.live.push({ id: "l:" + l.user_id, uid: l.user_id, live: true, sport: l.sport, name: nm(P, l.user_id), rating: avg(P, l.user_id), avatar: safeAvatar(P[l.user_id] && P[l.user_id].avatar), day: "now", dur: Math.max(1, Math.ceil((Date.parse(l.until) - now) / 60000)), spot: l.spot });
     });
     if (mineLive) { state.live.on = true; state.live.until = Date.parse(mineLive.until); state.live.spot = mineLive.spot; }
     else if (state.live.on) state.live.on = false;
@@ -1205,7 +1272,7 @@ a.linkbtn { display: inline-block; }
       if (r.status === "declined") { if (outgoing && old === "pending" && !quiet) toast(first(nm(P, other)) + " can’t make it right now"); return; }
       var mr = mineRates[r.id], tr = theirRates[r.id];
       if (r.status === "accepted" && !mr && now - Date.parse(r.created_at) > 48 * 36e5) return;
-      var syn = { id: catchId, uid: other, sport: r.sport, name: nm(P, other), rating: avg(P, other), day: r.live ? "now" : "later", label: r.live ? "" : dayLabelFromIso(r.starts_at), dur: r.dur, spot: r.spot };
+      var syn = { id: catchId, uid: other, sport: r.sport, name: nm(P, other), rating: avg(P, other), avatar: safeAvatar(P[other] && P[other].avatar), day: r.live ? "now" : "later", label: r.live ? "" : dayLabelFromIso(r.starts_at), dur: r.dur, spot: r.spot };
       remote.syn[catchId] = syn;
       if (r.status === "pending") {
         if (outgoing) out.push({ id: r.id, rid: r.id, uid: other, catchId: catchId, status: "pending", seen: true });
@@ -1357,6 +1424,14 @@ a.linkbtn { display: inline-block; }
         break;
       case "find-parks": findParks(); return;
       case "type-spot": geo.typed = true; break;
+      case "fav-add": addFav(); return;
+      case "fav-remove": removeFav(parseInt(v, 10)); return;
+      case "fav-toggle": toggleFav(v); return;
+      case "remove-photo": setAvatar(""); return;
+      case "pick-fav":
+        var fv = favList()[parseInt(v, 10)];
+        if (fv) { if (id === "lspot") state.live.spot = fv; else d.spot = fv; geo.typed = true; }
+        break;
       case "use-list": geo.typed = false; break;
       case "find-area": findArea(geo.query != null ? geo.query : state.profile.city); return;
       case "go-now": state.nearbyMode = "now"; goto("nearby"); return;
@@ -1389,6 +1464,7 @@ a.linkbtn { display: inline-block; }
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && e.target && e.target.id === "f-area") { e.preventDefault(); findArea(e.target.value); }
+    if (e.key === "Enter" && e.target && e.target.id === "pf-fav") { e.preventDefault(); addFav(e.target.value); }
   });
   document.addEventListener("input", function (e) {
     var f = e.target.getAttribute("data-pfield");
@@ -1403,8 +1479,15 @@ a.linkbtn { display: inline-block; }
     if (df === "spot") state.draft.spot = e.target.value;
     if (df === "lspot") state.live.spot = e.target.value;
     if (df === "area") geo.query = e.target.value;
+    if (df === "favdraft") state.favDraft = e.target.value;
   });
   document.addEventListener("change", function (e) {
+    if (e.target.id === "pf-photo") {
+      var fl = e.target.files && e.target.files[0]; if (!fl) return;
+      if (!/^image\//.test(fl.type)) { toast("Please pick a photo"); return; }
+      resizeImage(fl, function (u) { if (!u) { toast("Couldn’t read that photo"); return; } setAvatar(u); toast("Photo updated"); });
+      e.target.value = ""; return;
+    }
     if (e.target.id === "pf-agree") {
       state.profile.agreed = e.target.checked; save();
       var sb = document.querySelector('[data-action="save-profile"]'); if (sb) sb.disabled = !state.profile.agreed;
